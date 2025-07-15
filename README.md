@@ -110,13 +110,14 @@ This project implements a 4-load-cell digital weighing platform using an HX711 a
 ## 🧠 Template Sensor Example
 
 ```yaml
+# veggie-garden-hydroponics
+# Added for Outside tank calibration 25-07-13 without needing to reflash ESPHome
 - sensor:
     - name: "Outside Tank Gallons"
       unit_of_measurement: "gal"
       state: >
         {% set raw = states('sensor.hydroponics_patio_raw_hx711_sensor') | float %}
-
-        {% set all_points = [
+        {% set p = [
           (states('input_number.raw_00_gallons') | float, 0),
           (states('input_number.raw_05_gallons') | float, 5),
           (states('input_number.raw_10_gallons') | float, 10),
@@ -124,9 +125,14 @@ This project implements a 4-load-cell digital weighing platform using an HX711 a
           (states('input_number.raw_20_gallons') | float, 20),
           (states('input_number.raw_25_gallons') | float, 25),
         ] %}
-
+        
+        {# Filter out any pair where raw == 0 or gallon == 0 (except for 0 gallons case) #}
         {% set points = all_points | selectattr('0', 'ne', 0) | list %}
+        {% if (states('input_number.raw_00_gallons') | float) != 0 %}
+          {% set points = [(states('input_number.raw_00_gallons') | float, 0)] + points %}
+        {% endif %}
 
+        {# Interpolation across valid ranges #}
         {% for i in range(points | length - 1) %}
           {% set r1, g1 = points[i] %}
           {% set r2, g2 = points[i + 1] %}
