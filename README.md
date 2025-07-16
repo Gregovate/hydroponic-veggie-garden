@@ -1,6 +1,6 @@
 # Hydroponics Patio Controller (Outside System)
 
-📅 **Last Updated: 2025-07-14**
+📅 **Last Updated: 2025-07-16**
 
 This project monitors and controls an outdoor hydroponics system using a Wemos D1 Mini (ESP8266) running ESPHome, integrated with Home Assistant. It includes weight-based tank volume monitoring, temperature sensing, flow sensors, and relay control for pumps and solenoids. The system was rebuilt in July 2025 following a sensor wiring issue.
 
@@ -19,7 +19,8 @@ This project implements a 4-load-cell digital weighing platform using an HX711 a
 ## 📦 Hardware Overview
 
 ### Microcontroller
-- **Wemos D1 Mini (ESP8266)** – main controller
+- **Wemos D1 Mini (ESP8266)** – main controller works well with HX711 Load Cells
+- **Optional Mini ESP32** - Alternate when using a pressure sensor for tank volume
 
 ### Load Cell Platform
 - **4x 50kg Load Cells (Wishiot)**
@@ -108,60 +109,7 @@ All Home Assistant sensors, template logic, and calibration data live in:
 
 ## 📐 Calibration
 
-- Done with 5-gallon bucket increments because the scale had to be rebuilt because the sensor wiring was not standard
-- Max capacity: ~25 gallons (~7300 raw value)
-- Raw readings captured in HA using `input_number`
-- Interpolated to gallons using template sensor
-
-### Calibration Data
-
-| Gallons | Raw Reading |
-|---------|-------------|
-| 0       | -155650     |
-| 5       | -182952     |
-| 10      | -158002     |
-| 15      | -108181     |
-| 20      | -59021      |
-| 25      | -19275      |
-
----
-
-## 🧠 Template Sensor Example
-
-```yaml
-# veggie-garden-hydroponics
-# Added for Outside tank calibration 25-07-13 without needing to reflash ESPHome
-- sensor:
-    - name: "Outside Tank Gallons"
-      unit_of_measurement: "gal"
-      state: >
-        {% set raw = states('sensor.hydroponics_patio_raw_hx711_sensor') | float %}
-        {% set p = [
-          (states('input_number.raw_00_gallons') | float, 0),
-          (states('input_number.raw_05_gallons') | float, 5),
-          (states('input_number.raw_10_gallons') | float, 10),
-          (states('input_number.raw_15_gallons') | float, 15),
-          (states('input_number.raw_20_gallons') | float, 20),
-          (states('input_number.raw_25_gallons') | float, 25),
-        ] %}
-        
-        {# Filter out any pair where raw == 0 or gallon == 0 (except for 0 gallons case) #}
-        {% set points = all_points | selectattr('0', 'ne', 0) | list %}
-        {% if (states('input_number.raw_00_gallons') | float) != 0 %}
-          {% set points = [(states('input_number.raw_00_gallons') | float, 0)] + points %}
-        {% endif %}
-
-        {# Interpolation across valid ranges #}
-        {% for i in range(points | length - 1) %}
-          {% set r1, g1 = points[i] %}
-          {% set r2, g2 = points[i + 1] %}
-          {% if r1 >= raw >= r2 or r2 >= raw >= r1 %}
-            {% set slope = (g2 - g1) / (r2 - r1) %}
-            {% set gallons = g1 + slope * (raw - r1) %}
-            {{ gallons | round(1) }}
-          {% endif %}
-        {% endfor %}
-```
+📖 [Learn more about the calibration process and why it's handled in Home Assistant](docs/calibration-process-hx711.md)
 
 ---
 
@@ -181,7 +129,6 @@ All Home Assistant sensors, template logic, and calibration data live in:
 - Add 2x 12V peristaltic nutrient pumps
 - Track cumulative nutrient use and refill threshold
 - Add magnetic stirrer control before dosing
-- Re-enable InfluxDB/Grafana logging
 - Consider tank shape compensation at low volumes
 
 ---
@@ -190,5 +137,4 @@ All Home Assistant sensors, template logic, and calibration data live in:
 
 - [ ] Upload final KiCad schematic
 - [ ] Finalize polarity test procedure
-- [ ] Add QR label to HX711 box
-- [ ] Document HA automation for calibration
+- [X] Document HA automation for calibration
