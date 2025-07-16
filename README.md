@@ -39,6 +39,7 @@ This project implements a 4-load-cell digital weighing platform using an HX711 a
 
 ### HX711 Box RJ45 Wiring (Applies to both ends)
 
+<img src="docs/images/hx711-box.jpg" alt="HX711 Box Open" width="600"/>
 | Pin | Function                                |
 |-----|-----------------------------------------|
 | 1   | 3.3V (Red, DS18B20 VCC + 4.7kΩ pull-up) |
