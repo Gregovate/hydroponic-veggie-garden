@@ -1,0 +1,146 @@
+# hydroponics-patio-esp32.yaml
+# ESP32-compatible version
+# Includes optional pressure sensor section
+
+esphome:
+  name: hydroponics-patio-esp32
+  friendly_name: hydroponics-outside-esp32
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+ota:
+  platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  ap:
+    ssid: "Hydroponics-Outside-ESP32"
+    password: !secret fallback_password
+
+captive_portal:
+
+web_server:
+  port: 80
+
+# OneWire (Dallas Temp)
+one_wire:
+  - platform: gpio
+    pin: GPIO4  # Same as D2 on ESP8266
+
+status_led:
+  pin:
+    number: GPIO2  # Equivalent to D4
+    inverted: false
+
+binary_sensor:
+  - platform: homeassistant
+    id: hydroponics_outside_enabled
+    entity_id: input_boolean.hydroponics_outside
+
+sensor:
+  - platform: dallas_temp
+    address: 0x2D3C01D075031A28  # Change to match your sensor ID found in logs
+    accuracy_decimals: 1
+    filters:
+      - lambda: return x * (9.0/5.0) + 32.0;
+    unit_of_measurement: "°F"
+    name: "Outside Tank Temp"
+
+  - platform: hx711
+    name: "Raw HX711 Sensor"
+    id: hx711_sensor
+    dout_pin: GPIO14  # Same as D5
+    clk_pin: GPIO5   # Same as D1
+    gain: 128
+    update_interval: 1s
+    accuracy_decimals: 0
+    unit_of_measurement: "raw"
+    filters:
+      - sliding_window_moving_average:
+          window_size: 15
+          send_every: 5
+      - lambda: |-
+          if (!id(hydroponics_outside_enabled).state) return NAN;
+          return x;
+
+  - platform: pulse_counter
+    pin: GPIO12  # D6
+    name: "Outside East Channel Flow"
+    id: flow_east_patio
+    unit_of_measurement: "L/min"
+    update_interval: 1s
+    accuracy_decimals: 2
+    filters:
+      - lambda: |-
+          if (!id(hydroponics_outside_enabled).state) return NAN;
+          return x * 0.002235;
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 1
+      - heartbeat: 30s
+
+  - platform: pulse_counter
+    pin: GPIO13  # D7
+    name: "Outside West Channel Flow"
+    id: flow_west_patio
+    unit_of_measurement: "L/min"
+    update_interval: 1s
+    accuracy_decimals: 2
+    filters:
+      - lambda: |-
+          if (!id(hydroponics_outside_enabled).state) return NAN;
+          return x * 0.002235;
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 1
+      - heartbeat: 30s
+
+  # --- OPTIONAL: Submersible Pressure Sensor (0.5-4.5V) via ADC ---
+  # Uncomment and wire to a 3.3V-tolerant ADC pin like GPIO36 (VP)
+  #
+  # - platform: adc
+  #   pin: GPIO36
+  #   name: "Pressure Tank Level"
+  #   update_interval: 2s
+  #   accuracy_decimals: 2
+  #   unit_of_measurement: "V"
+  #   filters:
+  #     - lambda: |-
+  #         if (!id(hydroponics_outside_enabled).state) return NAN;
+  #         return x;  // raw voltage, convert in HA or add logic here
+
+switch:
+  - platform: gpio
+    pin:
+      number: GPIO0  # D3
+      mode: OUTPUT
+    name: "Water Fill Solenoid"
+    inverted: false
+    restore_mode: ALWAYS_OFF
+
+  - platform: gpio
+    pin:
+      number: GPIO15  # D8
+      mode: OUTPUT
+    name: "Nutrient Pump A"
+    inverted: true
+    restore_mode: ALWAYS_OFF
+
+  - platform: gpio
+    pin:
+      number: GPIO16  # D0
+      mode: OUTPUT
+    name: "Nutrient Pump B"
+    inverted: false
+    restore_mode: ALWAYS_OFF

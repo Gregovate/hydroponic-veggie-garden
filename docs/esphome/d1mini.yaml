@@ -1,0 +1,170 @@
+# hydroponics-patio.yaml
+# Updated 25-06-16
+# Changed GPIO pins for HX711
+# Added outputs for 3 relays to control water level & dosing pumps
+# Rebuilt scale with new sensors and Added tare button 25-07-12
+# Removed tare button added 25-07-12 on 25-07-13
+# removed Tank Gallon Calculation 25-07-15 
+
+esphome:
+  # on_boot:
+  #   priority: -100
+  #   then:
+  #     - lambda: |-
+  #         id(hx711_sensor).tare();
+  name: hydroponics-patio-v2
+  friendly_name: hydroponics-outside
+
+esp8266:
+  board: d1_mini
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+ota:
+  platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Hydroponics-Outside"
+    password: !secret fallback_password
+
+captive_portal:
+
+web_server:
+  port: 80
+
+one_wire:
+  - platform: gpio
+    pin: D2  # GPIO4 — Dallas/OneWire
+
+status_led:
+  pin:
+    number: D4  # GPIO2 — onboard LED
+    inverted: False
+
+# Binary sensor to allow enabling/disabling updates
+binary_sensor:
+  - platform: homeassistant
+    id: hydroponics_outside_enabled
+    entity_id: input_boolean.hydroponics_outside
+
+sensor:
+  - platform: dallas_temp
+    address: 0x2D3C01D075031A28
+    accuracy_decimals: 1
+    filters:
+      - lambda: return x * (9.0/5.0) + 32.0;
+    unit_of_measurement: "°F"  
+    name: "Outside Tank Temp"
+
+  - platform: hx711
+    name: "Raw HX711 Sensor"
+    id: hx711_sensor
+    dout_pin: D5  # GPIO14
+    clk_pin: D1   # GPIO5
+    gain: 128
+    update_interval: 1s
+    accuracy_decimals: 0
+    unit_of_measurement: "raw"
+    filters:
+      - sliding_window_moving_average:
+          window_size: 15
+          send_every: 5
+      - lambda: |-
+          if (!id(hydroponics_outside_enabled).state) return NAN;
+          return x;
+
+
+  # not using filter logic within esphome for calibration rather
+  # using a template sensor within Home Assistant 25-07-15
+  # - platform: template
+  #   name: "Outside Tank Gallons"
+  #   id: outside_tank_gallons
+  #   lambda: |-
+  #     // 0 gal = -18308
+  #     // 25 gal = -23753
+  #     float raw = id(hx711_sensor).state;
+  #     float gallons = (raw + 18308) * (25.0 / (23753 - 18308));
+  #     if (gallons < 0) return 0;
+  #     if (gallons > 25) return 25;
+  #     return gallons;
+  #   update_interval: 1s
+  #   unit_of_measurement: "gal"
+  #   state_class: "measurement"
+  #   accuracy_decimals: 1
+
+  - platform: pulse_counter
+    pin: D6  # GPIO12
+    name: "Outside East Channel Flow"
+    id: flow_east_patio
+    unit_of_measurement: "L/min"
+    update_interval: 1s
+    accuracy_decimals: 2
+    filters:
+      - lambda: |-
+          if (!id(hydroponics_outside_enabled).state) return NAN;
+          return x * 0.002235;
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 1
+      - heartbeat: 30s
+
+  - platform: pulse_counter
+    pin: D7  # GPIO13
+    name: "Outside West Channel Flow"
+    id: flow_west_patio
+    unit_of_measurement: "L/min"
+    update_interval: 1s
+    accuracy_decimals: 2
+    filters:
+      - lambda: |-
+          if (!id(hydroponics_outside_enabled).state) return NAN;
+          return x * 0.002235;
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 1
+      - heartbeat: 30s
+# button:
+#   - platform: template
+#     name: "Tare Outside Scale"
+#     on_press:
+#       then:
+#         - homeassistant.service:
+#             service: input_number.set_value
+#             data:
+#               entity_id: input_number.saved_tare_offset_outside
+#               value: !lambda 'return float(id(hx711_sensor).raw_state);'
+
+switch:
+  - platform: gpio
+    pin: 
+      number: D3  # GPIO0
+      mode: OUTPUT
+    name: "Water Fill Solenoid"
+    inverted: false
+    restore_mode: ALWAYS_OFF
+
+  - platform: gpio
+    pin: 
+      number: D8  # GPIO15
+      mode: OUTPUT
+    name: "Nutrient Pump A"
+    inverted: true  # Active LOW relay modules preferred
+    restore_mode: ALWAYS_OFF
+
+  - platform: gpio
+    pin: 
+      number: D0  # GPIO16
+      mode: OUTPUT
+    name: "Nutrient Pump B"
+    inverted: false
+    restore_mode: ALWAYS_OFF
+

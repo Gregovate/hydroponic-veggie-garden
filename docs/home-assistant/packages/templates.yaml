@@ -1,0 +1,53 @@
+# veggie-garden-hydroponics
+# Added for Outside tank calibration 25-07-13
+# Updated logic to only use values in order and igore 0 values
+# in case we have a messed up calibration point. 25-07-14
+- sensor:
+  - name: "Patio Tank Gallons"
+    unique_id: patio_tank_gallons
+    state_class: measurement
+    state: >
+      {# Get raw HX711 value #}
+      {% set raw = states('sensor.hydroponics_patio_raw_hx711_sensor') | float(0) %}
+
+      {# Read calibration points from input_numbers, paired with gallon levels #}
+      {% set all_points = [
+        (states('input_number.raw_00_gallons') | float(0), 0),
+        (states('input_number.raw_05_gallons') | float(0), 5),
+        (states('input_number.raw_10_gallons') | float(0), 10),
+        (states('input_number.raw_15_gallons') | float(0), 15),
+        (states('input_number.raw_20_gallons') | float(0), 20),
+        (states('input_number.raw_25_gallons') | float(0), 25),
+      ] %}
+
+      {# Filter out zeroed calibration points, EXCEPT explicitly keep 0 gallons if defined #}
+      {% set valid_points = all_points | selectattr('0', 'ne', 0) | list %}
+      {% if (states('input_number.raw_00_gallons') | float(0)) != 0 %}
+        {% set valid_points = [(states('input_number.raw_00_gallons') | float(0), 0)] + valid_points %}
+      {% endif %}
+
+      {# Initialize interpolated result #}
+      {% set ns = namespace(value = 0) %}
+
+      {# Interpolate between valid points to find estimated gallons #}
+      {% for i in range(valid_points | length - 1) %}
+        {% set r1, g1 = valid_points[i] %}
+        {% set r2, g2 = valid_points[i + 1] %}
+        {% if r1 >= raw >= r2 or r2 >= raw >= r1 %}
+          {% set slope = (g2 - g1) / (r2 - r1) %}
+          {% set ns.value = (g1 + slope * (raw - r1)) %}
+        {% endif %}
+      {% endfor %}
+
+      {# OPTIONAL: Debug printout — remove for production #}
+      {# Uncomment this block for template editor testing #}
+      {# 
+        {{ "\nRaw value: " ~ raw }}
+        {{ "\nValid Points:" }}
+        {% for p in valid_points %}
+          {{ "\n  " ~ p[0] ~ " → " ~ p[1] ~ " gal" }}
+        {% endfor %}
+        {{ "\nInterpolated Gallons: " ~ (ns.value | round(1)) }}
+      #}
+
+      {{ ns.value | round(1) }}
