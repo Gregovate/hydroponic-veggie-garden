@@ -97,6 +97,6 @@ Vout = 5 * (20 / 120) ≈ 0.83V (safe for A0)
 - Two resistors scale the signal safely to the desired range.
 - The resistor values you choose depend on your target voltage and the microcontroller’s limits.
 
-By wiring your voltage divider as shown above and selecting the correct resistor pair, your Uncle can safely read tank level data from a 5V sensor using ESPHome.
+By wiring your voltage divider as shown above and selecting the correct resistor pair, you can safely read tank level data from a 5V sensor using ESPHome. Just be sure to check your voltages before connecting to your micro controller!
 
 
