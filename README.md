@@ -5,6 +5,10 @@
 This project monitors and controls an outdoor hydroponics system using a Wemos D1 Mini (ESP8266) running ESPHome, integrated with Home Assistant. It includes weight-based tank volume monitoring, temperature sensing, flow sensors, and relay control for pumps and solenoids. The system was rebuilt in July 2025 following a sensor wiring issue.
 
 ---
+[![ESPHome](https://img.shields.io/badge/ESPHome-2025.7.0-blue.svg)](https://esphome.io/)
+[![Home Assistant](https://img.shields.io/badge/Home_Assistant-Compatible-brightgreen.svg)](https://www.home-assistant.io/)
+
+---
 
 ## 📌 Overview
 
@@ -74,6 +78,21 @@ This project implements a 4-load-cell digital weighing platform using an HX711 a
 | Nutrient Pump B     | D0   | Normal HIGH relay |
 
 ---
+
+## 🔧 ESPHome Configuration
+
+This project supports both ESP8266 and ESP32:
+
+- [hydroponics-d1mini.yaml](https://github.com/Gregovate/hydroponic-veggie-garden/blob/main/esphome/hydroponics-d1mini.yaml)
+- [hydroponics-esp32mini.yaml](https://github.com/Gregovate/hydroponic-veggie-garden/blob/main/esphome/hydroponics-esp32mini.yaml)
+
+These files are the authoritative source. Please do not rely on outdated YAML in the README.
+
+## 🏠 Home Assistant Integration
+
+All Home Assistant sensors, template logic, and calibration data live in:
+
+- [home-assistant folder](https://github.com/Gregovate/hydroponic-veggie-garden/tree/main/home-assistant)
 
 ## ⚙️ Home Assistant Entities
 
