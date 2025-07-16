@@ -84,8 +84,8 @@ This project implements a 4-load-cell digital weighing platform using an HX711 a
 
 This project supports both ESP8266 and ESP32:
 
-- [hydroponics-d1mini.yaml](https://github.com/Gregovate/hydroponic-veggie-garden/blob/main/esphome/hydroponics-d1mini.yaml)
-- [hydroponics-esp32mini.yaml](https://github.com/Gregovate/hydroponic-veggie-garden/blob/main/esphome/hydroponics-esp32mini.yaml)
+- [hydroponics-d1mini.yaml](https://github.com/Gregovate/hydroponic-veggie-garden/blob/main/esphome/d1mini.yaml)
+- [hydroponics-esp32mini.yaml](https://github.com/Gregovate/hydroponic-veggie-garden/blob/main/esphome/esp32mini.yaml)
 
 These files are the authoritative source. Please do not rely on outdated YAML in the README.
 
@@ -109,7 +109,7 @@ All Home Assistant sensors, template logic, and calibration data live in:
 
 ## 📐 Calibration
 
-📖 [Learn more about the calibration process and why it's handled in Home Assistant](docs/calibration-process-hx711.md)
+📖 [Learn more about the calibration process and why it's handled in Home Assistant](https://github.com/Gregovate/hydroponic-veggie-garden/blob/main/docs/calibration-process-hx711.md)
 
 ---
 
