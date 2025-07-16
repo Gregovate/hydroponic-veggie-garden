@@ -138,3 +138,8 @@ All Home Assistant sensors, template logic, and calibration data live in:
 - [ ] Upload final KiCad schematic
 - [ ] Finalize polarity test procedure
 - [X] Document HA automation for calibration
+
+---
+
+## 🧾 License
+This project is licensed under the [MIT License](LICENSE).
