@@ -1,53 +1,63 @@
 # veggie-garden-hydroponics
 # Added for Outside tank calibration 25-07-13
-# Updated logic to only use values in order and igore 0 values
+# Updated logic to only use values in order and ignore 0 values
 # in case we have a messed up calibration point. 25-07-14
+# updated for calibration errors and misreporting tank gallons triggered by rain event 25-07-16
 - sensor:
   - name: "Patio Tank Gallons"
     unique_id: patio_tank_gallons
+    unit_of_measurement: "gal"
     state_class: measurement
     state: >
-      {# Get raw HX711 value #}
-      {% set raw = states('sensor.hydroponics_patio_raw_hx711_sensor') | float(0) %}
+      {# Read the current raw HX711 sensor value (defaults to a known-bad number if unavailable) #}
+      {% set raw = states('sensor.hydroponics_patio_raw_hx711_sensor') | float(999900) %}
 
-      {# Read calibration points from input_numbers, paired with gallon levels #}
+      {# List of all calibration points: (gallons, raw value) #}
+      {# Each state is converted to float. Unset or unavailable values default to 0. #}
       {% set all_points = [
-        (states('input_number.raw_00_gallons') | float(0), 0),
-        (states('input_number.raw_05_gallons') | float(0), 5),
-        (states('input_number.raw_10_gallons') | float(0), 10),
-        (states('input_number.raw_15_gallons') | float(0), 15),
-        (states('input_number.raw_20_gallons') | float(0), 20),
-        (states('input_number.raw_25_gallons') | float(0), 25),
+        (0, states('input_number.raw_00_gallons') | float(0)),
+        (5, states('input_number.raw_05_gallons') | float(0)),
+        (10, states('input_number.raw_10_gallons') | float(0)),
+        (15, states('input_number.raw_15_gallons') | float(0)),
+        (20, states('input_number.raw_20_gallons') | float(0)),
+        (25, states('input_number.raw_25_gallons') | float(0)),
       ] %}
 
-      {# Filter out zeroed calibration points, EXCEPT explicitly keep 0 gallons if defined #}
-      {% set valid_points = all_points | selectattr('0', 'ne', 0) | list %}
-      {% if (states('input_number.raw_00_gallons') | float(0)) != 0 %}
-        {% set valid_points = [(states('input_number.raw_00_gallons') | float(0), 0)] + valid_points %}
-      {% endif %}
+      {# Reject calibration points that are still at 0 (invalid) #}
+      {% set points = all_points | rejectattr(1, 'equalto', 0) | list %}
 
-      {# Initialize interpolated result #}
-      {% set ns = namespace(value = 0) %}
+      {# If fewer than 2 calibration points are valid, return unknown #}
+      {% if points | length < 2 %}
+        {{ 'unknown' }}
 
-      {# Interpolate between valid points to find estimated gallons #}
-      {% for i in range(valid_points | length - 1) %}
-        {% set r1, g1 = valid_points[i] %}
-        {% set r2, g2 = valid_points[i + 1] %}
-        {% if r1 >= raw >= r2 or r2 >= raw >= r1 %}
-          {% set slope = (g2 - g1) / (r2 - r1) %}
-          {% set ns.value = (g1 + slope * (raw - r1)) %}
+      {% else %}
+        {# Sort the remaining calibration points by raw value #}
+        {% set sorted = points | sort(attribute=1) %}
+
+        {# Determine the minimum and maximum calibration points #}
+        {% set g_min, r_min = sorted[0] %}
+        {% set g_max, r_max = sorted[-1] %}
+
+        {# Clamp if raw value is below minimum calibrated range #}
+        {% if raw <= r_min %}
+          {{ g_min }}
+
+        {# Clamp if raw value is above maximum calibrated range #}
+        {% elif raw >= r_max %}
+          {{ g_max }}
+
+        {# Otherwise, interpolate between the nearest two points #}
+        {% else %}
+          {% for i in range(sorted | length - 1) %}
+            {% set g1, r1 = sorted[i] %}
+            {% set g2, r2 = sorted[i + 1] %}
+
+            {# Check if the raw value is between this pair (either ascending or descending) #}
+            {% if r1 <= raw <= r2 or r2 <= raw <= r1 %}
+              {% set slope = (g2 - g1) / (r2 - r1) %}
+              {% set gallons = g1 + slope * (raw - r1) %}
+              {{ gallons | round(1) }}
+            {% endif %}
+          {% endfor %}
         {% endif %}
-      {% endfor %}
-
-      {# OPTIONAL: Debug printout — remove for production #}
-      {# Uncomment this block for template editor testing #}
-      {# 
-        {{ "\nRaw value: " ~ raw }}
-        {{ "\nValid Points:" }}
-        {% for p in valid_points %}
-          {{ "\n  " ~ p[0] ~ " → " ~ p[1] ~ " gal" }}
-        {% endfor %}
-        {{ "\nInterpolated Gallons: " ~ (ns.value | round(1)) }}
-      #}
-
-      {{ ns.value | round(1) }}
+      {% endif %}
