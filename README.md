@@ -111,6 +111,12 @@ All Home Assistant sensors, template logic, and calibration data live in:
 
 ## 📐 Calibration
 
+This will return the correct gallons:
+✅ If the raw value is within calibration range → interpolated.
+✅ If above max → clamped to highest gallon point.
+✅ If below min → clamped to lowest gallon point.
+✅ If fewer than two valid calibration points → returns 'unknown'.
+
 📖 [Learn more about the calibration process and why it's handled in Home Assistant](https://github.com/Gregovate/hydroponic-veggie-garden/blob/main/docs/calibration-process-hx711.md)
 
 ---
