@@ -1470,6 +1470,180 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "Amazon_Modules:Pressure Sensor"
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "U?"
+				(at 0.254 12.954 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "0-5v"
+				(at -0.254 10.414 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at -12.7 -8.89 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "https://www.amazon.com/dp/B0CSWFWCVK?ref=fed_asin_title&th=1"
+				(at 0 15.24 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Submersible Liquid Level Sensor"
+				(at -0.762 -19.812 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "Pressure Sensor 0-5v"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "Pressure Sensor_0_1"
+				(rectangle
+					(start -5.08 8.89)
+					(end 5.08 -10.287)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.27 3.81) (xy 1.27 6.35)
+					)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(circle
+					(center 0 5.334)
+					(radius 2.6162)
+					(stroke
+						(width 0.508)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 2.54) (xy 0 0)
+					)
+					(stroke
+						(width 0.508)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.524 6.604) (xy 1.27 5.588) (xy 0.508 6.35) (xy 1.524 6.604)
+					)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type outline)
+					)
+				)
+			)
+			(symbol "Pressure Sensor_1_1"
+				(pin power_in line
+					(at -7.62 -2.54 0)
+					(length 2.54)
+					(name "GND"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 0 -12.7 90)
+					(length 2.54)
+					(name "Vout"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at 7.62 -2.54 180)
+					(length 2.54)
+					(name "Vcc"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "Amazon_Modules:TDS_Meter"
 			(exclude_from_sim no)
 			(in_bom yes)
@@ -6232,6 +6406,12 @@
 		(uuid "31e370c0-1fbc-4e1d-8d89-be4969d1c79b")
 	)
 	(junction
+		(at 115.57 77.47)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "402e55df-012c-43ea-bd71-f5e0c0566da5")
+	)
+	(junction
 		(at 95.25 151.13)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -6320,6 +6500,12 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "ea5cef2c-e9b4-49d8-a777-1254681afbb2")
+	)
+	(junction
+		(at 101.6 72.39)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "eb89b155-f0bf-4ace-bad7-d41171fe44f5")
 	)
 	(junction
 		(at 231.14 156.21)
@@ -6535,13 +6721,23 @@
 	)
 	(wire
 		(pts
-			(xy 101.6 77.47) (xy 101.6 58.42)
+			(xy 101.6 77.47) (xy 101.6 72.39)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
 		(uuid "167b4744-abe8-4089-aeac-41ed5ab29f44")
+	)
+	(wire
+		(pts
+			(xy 106.68 74.93) (xy 106.68 72.39)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "17b3dc7b-1834-4dbd-ad75-ada085ca88b8")
 	)
 	(wire
 		(pts
@@ -7016,6 +7212,26 @@
 	)
 	(wire
 		(pts
+			(xy 115.57 77.47) (xy 115.57 55.88)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "4d56f1f6-7fee-4d74-a3f6-0d648d5b43e6")
+	)
+	(wire
+		(pts
+			(xy 196.85 85.09) (xy 196.85 100.33)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "564518da-4f31-40b1-ae10-cbf90962124e")
+	)
+	(wire
+		(pts
 			(xy 50.8 97.79) (xy 25.4 97.79)
 		)
 		(stroke
@@ -7053,6 +7269,16 @@
 			(type default)
 		)
 		(uuid "5c9ca63e-74ca-4128-b122-7bcd4edaebc8")
+	)
+	(wire
+		(pts
+			(xy 189.23 74.93) (xy 106.68 74.93)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5d3b7459-1032-4ac4-a734-ef5da6c02c8d")
 	)
 	(wire
 		(pts
@@ -7298,6 +7524,16 @@
 	)
 	(wire
 		(pts
+			(xy 210.82 74.93) (xy 210.82 87.63)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "855ae5e7-ff65-4de2-8acf-f2baca68e020")
+	)
+	(wire
+		(pts
 			(xy 43.18 179.07) (xy 22.86 179.07)
 		)
 		(stroke
@@ -7305,6 +7541,26 @@
 			(type default)
 		)
 		(uuid "857e3d86-160e-43aa-8f13-0d08f4e271d6")
+	)
+	(wire
+		(pts
+			(xy 101.6 72.39) (xy 101.6 58.42)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "85ad14b1-a897-4e14-95ad-cff19a16bbaa")
+	)
+	(wire
+		(pts
+			(xy 106.68 72.39) (xy 101.6 72.39)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "885a1a94-dcf5-4d0c-9ae2-e0c5fee7f926")
 	)
 	(wire
 		(pts
@@ -7387,6 +7643,16 @@
 			(color 255 255 0 1)
 		)
 		(uuid "8fa1cbe8-c04f-4d5d-bb46-9d6204f5a1d7")
+	)
+	(wire
+		(pts
+			(xy 138.43 96.52) (xy 138.43 100.33)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9226c2c2-bea2-4a49-a7aa-cab16228b8c1")
 	)
 	(wire
 		(pts
@@ -7549,6 +7815,16 @@
 			(type default)
 		)
 		(uuid "a138bbae-52a4-49b9-8532-72e889d5d8de")
+	)
+	(wire
+		(pts
+			(xy 210.82 87.63) (xy 154.94 87.63)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a234ba3a-de44-4df0-be51-4c55a2466a26")
 	)
 	(wire
 		(pts
@@ -7736,6 +8012,16 @@
 	)
 	(wire
 		(pts
+			(xy 154.94 77.47) (xy 115.57 77.47)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b974761d-9cc0-4d51-9b8f-8a9a13af8985")
+	)
+	(wire
+		(pts
 			(xy 233.68 73.66) (xy 238.76 73.66)
 		)
 		(stroke
@@ -7859,7 +8145,7 @@
 	)
 	(wire
 		(pts
-			(xy 115.57 99.06) (xy 115.57 55.88)
+			(xy 115.57 99.06) (xy 115.57 77.47)
 		)
 		(stroke
 			(width 0)
@@ -8135,6 +8421,16 @@
 	)
 	(wire
 		(pts
+			(xy 154.94 87.63) (xy 154.94 77.47)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e707a39f-e2a6-4d32-8a91-830c5603505f")
+	)
+	(wire
+		(pts
 			(xy 80.01 33.02) (xy 116.84 33.02)
 		)
 		(stroke
@@ -8245,6 +8541,16 @@
 	)
 	(wire
 		(pts
+			(xy 204.47 74.93) (xy 210.82 74.93)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f3e36158-abc6-452d-bfa1-199b4adccff3")
+	)
+	(wire
+		(pts
 			(xy 209.55 121.92) (xy 209.55 143.51)
 		)
 		(stroke
@@ -8303,6 +8609,16 @@
 			(type default)
 		)
 		(uuid "fe065d51-2089-4898-b70a-5a687eae8ad9")
+	)
+	(wire
+		(pts
+			(xy 196.85 100.33) (xy 138.43 100.33)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fe275c90-172c-478c-9014-a36ba698f41a")
 	)
 	(wire
 		(pts
@@ -9808,6 +10124,77 @@
 			(project "hydroponics_controller_esp32"
 				(path "/0e72da9f-540e-48b3-a96e-9cdd4d439927"
 					(reference "M2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Amazon_Modules:Pressure Sensor")
+		(at 196.85 72.39 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "8c4063b1-8403-468d-a82a-29f3f4af0785")
+		(property "Reference" "U9"
+			(at 196.85 58.42 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "0-5v"
+			(at 196.85 60.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 184.15 81.28 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.amazon.com/dp/B0CSWFWCVK?ref=fed_asin_title&th=1"
+			(at 196.85 57.15 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Submersible Liquid Level Sensor"
+			(at 196.088 92.202 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "3"
+			(uuid "699a6e5e-b7d4-41e9-9c95-30f146654d98")
+		)
+		(pin "1"
+			(uuid "9bca755c-d1ae-4d57-b67e-30c190885eb4")
+		)
+		(pin "2"
+			(uuid "a74609dc-b1c9-4a32-a3d6-54d3639e2282")
+		)
+		(instances
+			(project ""
+				(path "/0e72da9f-540e-48b3-a96e-9cdd4d439927"
+					(reference "U9")
 					(unit 1)
 				)
 			)
