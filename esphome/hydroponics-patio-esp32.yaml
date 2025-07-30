@@ -1,0 +1,663 @@
+# hydroponics-patio-esp32.yaml
+# Created for D1 mini 23-06-16
+# Changed GPIO pins for HX711
+# Added outputs for 3 relays to control water level & dosing pumps
+# Rebuilt scale with new sensors and Added tare button 25-07-12
+# Removed tare button added 25-07-12 on 25-07-13
+# removed Tank Gallon Calculation 25-07-15 
+# Converted to ESP32 25-07-26
+# Added Inline comments during debuging
+# Tested and functional 25-07-29
+
+esphome:
+  name: hydroponics-patio-esp32
+  friendly_name: hydroponics-outside
+
+  on_boot:
+    priority: -200  # Run as early as possible
+    then:
+      - output.turn_off: gpio_nutrient_pump_a
+      - output.turn_off: gpio_nutrient_pump_b
+      - output.turn_off: gpio_water_fill_solenoid
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+#setup timers for dosing pumps 25-07-08
+globals:
+  # Timer needed for accurate dosing pump A 25-07-28
+  - id: dose_timer_a
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  # Timer needed for accurate dosing pump B 25-07-28
+  - id: dose_timer_b
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  # Save last fill gallons 25-07-28
+  - id: last_fill_gallons
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+  # Capture fill time duration  25-07-29
+  - id: fill_start_time
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  # Track fill gallons during manual fill 25-07-29
+  - id: fill_state
+    type: int
+    restore_value: no
+    initial_value: '0'  # 0 = IDLE, 1 = RUNNING, 2 = COMPLETE
+
+  - id: override_a_remaining_time
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+  - id: override_b_remaining_time
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+# Enable logging
+logger:
+  level: VERBOSE
+  logs:
+    sensor: WARN
+    ads1115.sensor: WARN
+    pulse_counter: WARN
+    hx711: WARN
+    dallas.sensor: WARN
+    component: WARN
+    main: DEBUG
+    manual_fill: DEBUG
+
+# Enable Home Assistant API
+api:
+
+ota:
+  - platform: esphome  # Your existing OTA method
+  - platform: web_server  # Add this for web-based OTA uploads
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Hydroponics-Patio-Esp32"
+    password: "9zpm8sHTAuuT"
+
+captive_portal:
+    
+web_server:
+  port: 80
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: true
+
+time:
+  - platform: homeassistant
+    id: esptime  # Required to get correct local time from HA
+
+ads1115:
+  - address: 0x48  # Default I2C address for ADS1115
+    id: ads1115_outside
+
+one_wire:
+  - platform: gpio
+    pin: GPIO26  # GPIO26 — Dallas/OneWire
+
+status_led:
+  pin:
+    number: GPIO2  # GPIO2 — onboard LED
+    inverted: False
+
+# Binary sensor to allow enabling/disabling updates
+binary_sensor:
+  - platform: homeassistant
+    id: hydroponics_outside_enabled
+    entity_id: input_boolean.hydroponics_outside
+
+sensor:
+  - platform: dallas_temp
+    address: 0x2D3C01D075031A28
+    accuracy_decimals: 1
+    filters:
+      - lambda: return x * (9.0/5.0) + 32.0;
+    unit_of_measurement: "°F"
+    name: "Tank Temp"
+
+  - platform: hx711
+    name: "Raw HX711 Sensor"
+    id: hx711_sensor
+    dout_pin: GPIO4  # From D5 on D1 Mini
+    clk_pin: GPIO23   # Updated from D1 (ESP8266)
+    gain: 128
+    update_interval: 1s
+    accuracy_decimals: 0
+    unit_of_measurement: "raw"
+    filters:
+      - lambda: |-
+          return x;
+      - sliding_window_moving_average:
+          window_size: 15
+          send_every: 5
+
+  - platform: pulse_counter
+    pin: GPIO25  # East channel
+    name: "East Channel Flow"
+    id: flow_east_patio
+    unit_of_measurement: "L/min"
+    update_interval: 1s
+    accuracy_decimals: 2
+    filters:
+      - lambda: return x * 0.002235;
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 1
+      - heartbeat: 30s
+
+  - platform: pulse_counter
+    pin: GPIO18  # West channel
+    name: "West Channel Flow"
+    id: flow_west_patio
+    unit_of_measurement: "L/min"
+    update_interval: 1s
+    accuracy_decimals: 2
+    filters:
+      - lambda: return x * 0.002235;
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 1
+      - heartbeat: 30s
+
+  - platform: pulse_counter
+    pin: GPIO19
+    id: fill_pulses
+    internal: true
+    name: "Fill Pulses"
+    unit_of_measurement: "pulses"  # Optional: keep for diagnostics or remove
+    update_interval: 1s
+    accuracy_decimals: 2
+    filters:
+      - lambda: return x;
+
+    total:
+      name: "Fill Gallons"
+      id: fill_gallons
+      unit_of_measurement: "gal"
+      accuracy_decimals: 2
+      filters:
+        - lambda: return x / 1690.0;  # 👈 Accurate calibration: 8450 pulses = 5 gallons
+
+  # TDS meter input via ADS1115 A0
+  - platform: ads1115
+    ads1115_id: ads1115_outside
+    multiplexer: 'A0_GND'
+    gain: 4.096  #updated from 2.048 25-07-27
+    name: "TDS Raw"
+    id: tds_raw
+    update_interval: 2s
+    accuracy_decimals: 3
+    unit_of_measurement: "V"
+
+  # Calibration for TDS meter rough pass 25-07-27
+  - platform: template
+    name: "TDS EC"
+    id: tds_ec
+    unit_of_measurement: "mS/cm"
+    accuracy_decimals: 2
+    update_interval: 2s
+    lambda: |-
+      float v = id(tds_raw).state;
+      return 0.423 * v * v + 0.132 * v - 0.043;
+
+  # # Placeholder for future Pressure Sensor on A1
+  # - platform: ads1115
+  #   ads1115_id: ads1115_outside
+  #   multiplexer: 'A1_GND'
+  #   gain: 1.096
+  #   name: "Tank Pressure Sensor (Placeholder)"
+  #   id: pressure_placeholder
+  #   update_interval: 2s
+  #   accuracy_decimals: 3
+  #   unit_of_measurement: "V"
+  #   disabled_by_default: true
+  
+  # Stores the last successful manual fill amount for use in dosing
+  - platform: template
+    name: "Last Fill Gallons"
+    id: last_fill_sensor
+    unit_of_measurement: "gal"
+    accuracy_decimals: 2
+    update_interval: never  # Only updated when fill completes
+    force_update: true
+    internal: false
+    lambda: |-
+      return id(last_fill_gallons);  // Global variable holding last fill amount
+
+  # Records the fill time duration
+  - platform: template
+    name: "Fill Duration"
+    id: fill_duration_sensor
+    unit_of_measurement: "min"
+    accuracy_decimals: 2
+    update_interval: never
+    force_update: true
+    internal: false
+    lambda: |-
+      return NAN;  // Value is pushed via publish_state()
+
+
+  #Throw away sensors for calibration 25-07-28
+  - platform: template
+    name: "Last Pump A Runtime"
+    id: last_pump_a_runtime
+    unit_of_measurement: "s"
+    accuracy_decimals: 2
+    update_interval: never
+
+  - platform: template
+    name: "Last Pump B Runtime"
+    id: last_pump_b_runtime
+    unit_of_measurement: "s"
+    accuracy_decimals: 2
+    update_interval: never
+
+# Added for manual overrides when needed 25-07-28
+text_sensor:
+  - platform: homeassistant
+    name: "Hydroponics Control Mode"
+    id: hydroponics_control_mode
+    entity_id: input_select.hydroponics_outside_control_mode
+
+output:
+  - platform: gpio
+    id: gpio_nutrient_pump_a
+    pin:
+      number: GPIO32
+      mode: OUTPUT
+#    inverted: true  # Active LOW relay
+
+  - platform: gpio
+    id: gpio_nutrient_pump_b
+    pin:
+      number: GPIO33
+      mode: OUTPUT
+#    inverted: true  # Active LOW relay
+
+  - platform: gpio
+    id: gpio_water_fill_solenoid
+    pin:
+      number: GPIO14
+      mode: OUTPUT
+#    inverted: true  # Active LOW relay
+
+switch:
+  - platform: output
+    id: nutrient_pump_a
+    name: "Nutrient Pump A"
+    output: gpio_nutrient_pump_a
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      then:
+        - lambda: |-
+            id(dose_timer_a) = millis();
+        - logger.log:
+            format: "Calibration timer A started"
+            level: INFO
+    on_turn_off:
+      then:
+        - lambda: |-
+            uint32_t elapsed = millis() - id(dose_timer_a);
+            float seconds = elapsed / 1000.0;
+            id(last_pump_a_runtime).publish_state(seconds);  // Send to HA
+            ESP_LOGI("main", "Pump A ran for %.2f seconds", seconds);
+
+  - platform: output
+    id: nutrient_pump_b
+    name: "Nutrient Pump B"
+    output: gpio_nutrient_pump_b
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      then:
+        - lambda: |-
+            id(dose_timer_b) = millis();
+        - logger.log:
+            format: "Calibration timer B started"
+            level: INFO
+    on_turn_off:
+      then:
+        - lambda: |-
+            uint32_t elapsed = millis() - id(dose_timer_b);
+            float seconds = elapsed / 1000.0;
+            id(last_pump_b_runtime).publish_state(seconds);  // Send to HA
+            ESP_LOGI("main", "Pump B ran for %.2f seconds", seconds);
+
+  - platform: output
+    id: water_fill_solenoid
+    name: "Water Fill Solenoid"
+    output: gpio_water_fill_solenoid
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      then:
+        - lambda: |-
+            id(fill_start_time) = millis();
+        - logger.log:
+            format: "Fill start time recorded: %u ms"
+            args: [id(fill_start_time)]
+            tag: main
+            level: INFO
+        - logger.log:
+            format: "Resetting pulse counter because fill valve started"
+            tag: main
+            level: DEBUG
+        - pulse_counter.set_total_pulses:
+            id: fill_pulses
+            value: 0
+        - globals.set:
+            id: last_fill_gallons
+            value: '0.0'
+        - sensor.template.publish:
+            id: last_fill_sensor
+            state: !lambda |-
+              return 0.0;
+
+    on_turn_off:
+      then:
+        - lambda: |-
+            id(last_fill_gallons) = id(fill_gallons).state;
+        - sensor.template.publish:
+            id: last_fill_sensor
+            state: !lambda |-
+              return id(fill_gallons).state;
+        - logger.log:
+            format: "Fill complete: %.2f gal"
+            args: [id(last_fill_gallons)]
+            tag: main
+            level: INFO
+
+
+
+
+
+
+number:
+  # Get target fill gallons for Manual and Override modes from Home Assistant
+  - platform: homeassistant
+    id: manual_fill_gallons
+    entity_id: input_number.outside_manual_fill_gallons
+
+  # Get ml to dose for override from Home Assistant A
+  - platform: homeassistant
+    id: manual_dose_a_ml
+    entity_id: input_number.manual_dose_outside_a_ml
+
+  # Get ml to dose for override from Home Assistant B 
+  - platform: homeassistant
+    id: manual_dose_b_ml
+    entity_id: input_number.manual_dose_outside_b_ml
+
+  # Dosing rate: Nutrient Pump A
+  - platform: template
+    name: "Pump A Rate"
+    id: ml_per_sec_a
+    min_value: 1.0
+    max_value: 5.0
+    step: 0.01
+    initial_value: 1.64
+    unit_of_measurement: "mL/s"
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    name: "Pump B Rate"
+    id: ml_per_sec_b
+    min_value: 1.0
+    max_value: 5.0
+    step: 0.01
+    initial_value: 1.66
+    unit_of_measurement: "mL/s"
+    optimistic: true
+    restore_value: true
+    mode: box
+
+button:
+  - platform: template
+    name: "Start Manual Fill"
+    id: manual_fill_start
+    on_press:
+      then:
+        - logger.log:
+            format: Turning on fill valve for manual fill
+            tag: main
+            level: DEBUG
+        - switch.turn_on: 
+            id: water_fill_solenoid
+
+  # Reusable button that chooses dosing logic based on control mode — updated 25-07-28
+
+  - platform: template
+    name: Dose Pump A
+    id: dose_pump_a_button
+    on_press:
+      - homeassistant.service:
+          service: input_datetime.set_datetime
+          data:
+            entity_id: input_datetime.last_outside_dose_a
+          data_template:
+            datetime: !lambda |-
+              char buf[25];
+              time_t now = id(esptime).now().timestamp;
+              strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", localtime(&now));
+              return std::string(buf);
+      - lambda: |-
+          std::string mode = id(hydroponics_control_mode).state;
+          if (mode == "ESP-Override") {
+            id(dose_override_pump_a).execute();
+          } else {
+            id(dose_pump_a).execute();
+          }  // <-- This was missing
+          ;
+
+  - platform: template
+    name: Dose Pump B
+    id: dose_pump_b_button
+    on_press:
+      - homeassistant.service:
+          service: input_datetime.set_datetime
+          data:
+            entity_id: input_datetime.last_outside_dose_b
+          data_template:
+            datetime: !lambda |-
+              char buf[25];
+              time_t now = id(esptime).now().timestamp;
+              strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", localtime(&now));
+              return std::string(buf);
+      - lambda: |-
+          std::string mode = id(hydroponics_control_mode).state;
+          if (mode == "ESP-Override") {
+            id(dose_override_pump_b).execute();
+          } else {
+            id(dose_pump_b).execute();
+          }  // <-- This was missing too
+          ;
+
+
+
+
+
+
+# Closes the valve after requested number of gallons has been added.
+# And saves the gallons filled to id(last_fill_gallons)
+# updated to capture filled gallons before commanding the valve to close 25-07-29
+# updated fill duration to count the time while filling 25-07-29
+# FILL LOGIC + NON-BLOCKING DOSING OVERRIDES
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          uint32_t now = millis();
+
+          // ========== FILL TRACKING ==========
+          if (id(water_fill_solenoid).state) {
+            id(fill_state) = 1; // RUNNING
+            float duration_min = (now - id(fill_start_time)) / 60000.0;
+            ESP_LOGD("manual_fill", "Fill running: %.2f gal so far, %.2f min", id(fill_gallons).state, duration_min);
+            id(fill_duration_sensor).publish_state(duration_min);
+          }
+
+          float current = id(fill_gallons).state;
+          float target = id(manual_fill_gallons).state;
+
+          if (current >= target && id(water_fill_solenoid).state) {
+            id(last_fill_gallons) = current;
+            id(last_fill_sensor).publish_state(current);
+
+            float duration_min = (now - id(fill_start_time)) / 60000.0;
+            id(fill_duration_sensor).publish_state(duration_min);
+
+            id(water_fill_solenoid).turn_off();
+            id(fill_state) = 2; // COMPLETE
+
+            ESP_LOGI("manual_fill", "Fill complete: %.2f gal in %.2f min", current, duration_min);
+          }
+
+          // ========== NON-BLOCKING OVERRIDE DOSING ==========
+          if (id(override_a_remaining_time) > 0.0f) {
+            id(override_a_remaining_time) -= 1.0f;
+            ESP_LOGD("main", "Dose A remaining: %.1f sec", id(override_a_remaining_time));
+            if (id(override_a_remaining_time) <= 0.0f) {
+              id(nutrient_pump_a).turn_off();
+              ESP_LOGI("main", "Override A complete — pump off");
+            }
+          }
+
+          if (id(override_b_remaining_time) > 0.0f) {
+            id(override_b_remaining_time) -= 1.0f;
+            ESP_LOGD("main", "Dose B remaining: %.1f sec", id(override_b_remaining_time));
+            if (id(override_b_remaining_time) <= 0.0f) {
+              id(nutrient_pump_b).turn_off();
+              ESP_LOGI("main", "Override B complete — pump off");
+            }
+          }
+
+      - if:
+          condition:
+            lambda: return id(fill_state) == 2;
+          then:
+            - homeassistant.service:
+                service: input_datetime.set_datetime
+                data:
+                  entity_id: input_datetime.tank_fill_stopped
+                data_template:
+                  datetime: !lambda |-
+                    char buf[25];
+                    time_t now = id(esptime).now().timestamp;
+                    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", localtime(&now));
+                    return std::string(buf);
+
+            - homeassistant.service:
+                service: input_number.set_value
+                data:
+                  entity_id: input_number.tank_last_fill_gallons
+                data_template:
+                  value: !lambda 'return id(last_fill_gallons);'
+
+            - lambda: |-
+                id(last_fill_gallons) = 0.0;
+                id(fill_state) = 0; // IDLE
+
+
+# NON-BLOCKING DOSING SCRIPTS
+script:
+  - id: dose_pump_a
+    mode: single
+    then:
+      - lambda: |-
+          float gal = id(fill_gallons).state;
+          float rate = id(ml_per_sec_a).state;
+
+          if (gal <= 0.0) {
+            ESP_LOGW("main", "Dose A skipped — no gallons detected (%.2f gal)", gal);
+            return;
+          }
+
+          if (rate <= 0.01) {
+            ESP_LOGE("main", "Invalid flow rate for Pump A: %.2f mL/s", rate);
+            return;
+          }
+
+          float ml = gal * 10.0;
+          float seconds = ml / rate;
+
+          ESP_LOGI("main", "Dose A: %.2f mL for %.2f gal (%.2f sec)", ml, gal, seconds);
+          id(override_a_remaining_time) = seconds;
+          id(nutrient_pump_a).turn_on();
+
+  - id: dose_pump_b
+    mode: single
+    then:
+      - lambda: |-
+          float gal = id(fill_gallons).state;
+          float rate = id(ml_per_sec_b).state;
+
+          if (gal <= 0.0) {
+            ESP_LOGW("main", "Dose B skipped — no gallons detected (%.2f gal)", gal);
+            return;
+          }
+
+          if (rate <= 0.01) {
+            ESP_LOGE("main", "Invalid flow rate for Pump B: %.2f mL/s", rate);
+            return;
+          }
+
+          float ml = gal * 10.0;
+          float seconds = ml / rate;
+
+          ESP_LOGI("main", "Dose B: %.2f mL for %.2f gal (%.2f sec)", ml, gal, seconds);
+          id(override_b_remaining_time) = seconds;
+          id(nutrient_pump_b).turn_on();
+
+
+  - id: dose_override_pump_a
+    mode: restart
+    then:
+      - lambda: |-
+          float ml = id(manual_dose_a_ml).state;
+          float rate = id(ml_per_sec_a).state;
+          if (rate <= 0.01) {
+            ESP_LOGE("main", "Invalid override rate for Pump A: %.2f", rate);
+            return;
+          }
+          float seconds = ml / rate;
+          id(override_a_remaining_time) = seconds;
+          ESP_LOGI("main", "Start Override A: %.2f mL @ %.2f mL/s = %.2f sec", ml, rate, seconds);
+          id(nutrient_pump_a).turn_on();
+
+  - id: dose_override_pump_b
+    mode: restart
+    then:
+      - lambda: |-
+          float ml = id(manual_dose_b_ml).state;
+          float rate = id(ml_per_sec_b).state;
+          if (rate <= 0.01) {
+            ESP_LOGE("main", "Invalid override rate for Pump B: %.2f", rate);
+            return;
+          }
+          float seconds = ml / rate;
+          id(override_b_remaining_time) = seconds;
+          ESP_LOGI("main", "Start Override B: %.2f mL @ %.2f mL/s = %.2f sec", ml, rate, seconds);
+          id(nutrient_pump_b).turn_on();

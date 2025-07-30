@@ -1,1 +1,32 @@
 **/Corel\ Auto-Preserve/
+# Ignore KiCad backup and autosave files
+*.bak
+#~*
+#auto_saved_files#
+
+# Ignore KiCad lock and cache files
+*.kicad_sch-bak
+*.kicad_pcb-bak
+*.kicad_sch.lck
+fp-info-cache
+sym-lib-table.bak
+fp-lib-table.bak
+
+# Ignore project-specific temporary files
+*.kicad_prl
+*.kicad_dru
+*.kicad_wks
+*.kicad_pro.bak
+*.kicad_plt
+*-backups/
+*-backups/**
+\#*\#
+*-lib-table
+
+
+
+
+# Ignore spreadsheets and temp working files
+*.xlsx
+*.ods
+~$*.*
