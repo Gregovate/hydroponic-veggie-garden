@@ -3,11 +3,12 @@
 ## Container Size
 
 * Use two 1 gallon (3785 mL) food-grade containers
+  - I wash and reuse Harris 30% Vinegar Multi-Purpose Cleaner containers purchased from Home Depot
 * Fill each container approximately half full with hot (not boiling) water
 
 ---
 
-# Part A — MasterBlend + Epsom Salt
+# 🧪 Part A — MasterBlend + Epsom Salt
 
 ## Ingredients
 
@@ -24,7 +25,7 @@
 
 ---
 
-# Part B — Calcium Nitrate
+# 🧪 Part B — Calcium Nitrate
 
 ## Ingredients
 
@@ -40,7 +41,7 @@
 
 ---
 
-# Mixing Precautions
+# ⚠️ Mixing Precautions
 
 * **Do NOT mix Part A and Part B concentrates together directly**
 * Always dose Part A and Part B separately into the hydroponic system
@@ -49,7 +50,7 @@
 
 ---
 
-# Dosing Ratio
+# 📏 Dosing Ratio
 
 * Dose **10 mL of Part A** per gallon of fresh water added
 * Dose **10 mL of Part B** per gallon of fresh water added
@@ -60,7 +61,7 @@
 
 ---
 
-# Maintenance Notes
+# 🧼 Maintenance Notes
 
 * If algae begins growing inside the containers, excessive light exposure is likely occurring
 * Discard contaminated solution and remix a fresh batch
