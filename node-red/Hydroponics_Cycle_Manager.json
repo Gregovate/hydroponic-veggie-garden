@@ -1,0 +1,850 @@
+[
+    {
+        "id": "261f750566161202",
+        "type": "server-state-changed",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Pump A State Change",
+        "server": "28f1afb.2a0725",
+        "version": 6,
+        "outputs": 1,
+        "exposeAsEntityConfig": "",
+        "entities": {
+            "entity": [
+                "switch.hydroponics_patio_esp32_nutrient_pump_a"
+            ],
+            "substring": [],
+            "regex": []
+        },
+        "outputInitially": false,
+        "stateType": "str",
+        "ifState": "",
+        "ifStateType": "str",
+        "ifStateOperator": "is",
+        "outputOnlyOnStateChange": true,
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "ignorePrevStateNull": false,
+        "ignorePrevStateUnknown": false,
+        "ignorePrevStateUnavailable": false,
+        "ignoreCurrentStateUnknown": false,
+        "ignoreCurrentStateUnavailable": false,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "eventData"
+            },
+            {
+                "property": "topic",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "triggerId"
+            }
+        ],
+        "x": 140,
+        "y": 1060,
+        "wires": [
+            [
+                "7dce1a043980cb95",
+                "7eabbb3955a2def6"
+            ]
+        ]
+    },
+    {
+        "id": "4deb502be5380508",
+        "type": "server-state-changed",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Pump B State Change",
+        "server": "28f1afb.2a0725",
+        "version": 6,
+        "outputs": 1,
+        "exposeAsEntityConfig": "",
+        "entities": {
+            "entity": [
+                "switch.hydroponics_patio_esp32_nutrient_pump_b"
+            ],
+            "substring": [],
+            "regex": []
+        },
+        "outputInitially": false,
+        "stateType": "str",
+        "ifState": "",
+        "ifStateType": "str",
+        "ifStateOperator": "is",
+        "outputOnlyOnStateChange": true,
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "ignorePrevStateNull": false,
+        "ignorePrevStateUnknown": false,
+        "ignorePrevStateUnavailable": false,
+        "ignoreCurrentStateUnknown": false,
+        "ignoreCurrentStateUnavailable": false,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "eventData"
+            },
+            {
+                "property": "topic",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "triggerId"
+            }
+        ],
+        "x": 140,
+        "y": 1140,
+        "wires": [
+            [
+                "7dce1a043980cb95",
+                "39fb51d503f3a1fc"
+            ]
+        ]
+    },
+    {
+        "id": "1aebec4bc846b4c6",
+        "type": "server-state-changed",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Water FIll Solinoid",
+        "server": "28f1afb.2a0725",
+        "version": 6,
+        "outputs": 1,
+        "exposeAsEntityConfig": "",
+        "entities": {
+            "entity": [
+                "switch.hydroponics_patio_esp32_water_fill_solenoid"
+            ],
+            "substring": [],
+            "regex": []
+        },
+        "outputInitially": false,
+        "stateType": "str",
+        "ifState": "",
+        "ifStateType": "str",
+        "ifStateOperator": "is",
+        "outputOnlyOnStateChange": true,
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "ignorePrevStateNull": false,
+        "ignorePrevStateUnknown": false,
+        "ignorePrevStateUnavailable": false,
+        "ignoreCurrentStateUnknown": false,
+        "ignoreCurrentStateUnavailable": false,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "eventData"
+            },
+            {
+                "property": "topic",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "triggerId"
+            }
+        ],
+        "x": 150,
+        "y": 1220,
+        "wires": [
+            [
+                "7dce1a043980cb95",
+                "a112415935625cec"
+            ]
+        ]
+    },
+    {
+        "id": "7dce1a043980cb95",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Hydroponics Cycle Manager",
+        "func": "const entity = msg.topic;\nconst state = msg.payload;\n\nlet cycle = flow.get(\"outside_pending_cycle\") || null;\n\nfunction nowIso() {\n    return new Date().toISOString();\n}\n\nfunction newCycle(eventType = \"DOSE\") {\n    return {\n        started_at: nowIso(),\n        mode: \"esp-override\",\n        source: \"outside\",\n        location: \"patio\",\n        device: \"node_red_cycle_manager\",\n        event_type: eventType,\n\n        system_gallons: null,\n        gallons_added: null,\n\n        dose_a_ml: null,\n        dose_b_ml: null,\n\n        tds_before: null,\n        tds_after: null,\n\n        fill_used: false,\n        pump_a_used: false,\n        pump_b_used: false\n    };\n}\n\n// -----------------------------\n// ACTION STARTED\n// -----------------------------\nif (state === \"on\") {\n\n    flow.set(\"outside_cycle_active\", true);\n\n    // Pump A starts a new nutrient dosing cycle.\n    // Water fill also starts a new fill cycle.\n    // Pump B should normally join the active Pump A cycle.\n    if (entity.includes(\"nutrient_pump_a\")) {\n        cycle = newCycle(\"DOSE\");\n        node.warn(\"NEW DOSE CYCLE STARTED\");\n        msg.capture_before = true;\n    } else if (entity.includes(\"water_fill_solenoid\")) {\n        cycle = newCycle(\"FILL\");\n        node.warn(\"NEW FILL CYCLE STARTED\");\n        msg.capture_before = true;\n    } else if (!cycle) {\n        cycle = newCycle(\"DOSE\");\n        node.warn(\"NEW CYCLE STARTED\");\n        msg.capture_before = true;\n    }\n\n    if (entity.includes(\"water_fill_solenoid\")) {\n        cycle.fill_used = true;\n        cycle.event_type = \"FILL\";\n    }\n\n    if (entity.includes(\"nutrient_pump_a\")) {\n        cycle.pump_a_used = true;\n    }\n\n    if (entity.includes(\"nutrient_pump_b\")) {\n        cycle.pump_b_used = true;\n    }\n\n    flow.set(\"outside_pending_cycle\", cycle);\n\n    msg.payload = cycle;\n    return msg;\n}\n\n// -----------------------------\n// ACTION STOPPED\n// -----------------------------\nif (state === \"off\") {\n\n    if (!cycle) {\n        node.warn(\"OFF event with no active cycle\");\n        return null;\n    }\n\n    cycle.last_activity = nowIso();\n\n    if (entity.includes(\"water_fill_solenoid\")) {\n        node.warn(\"Fill completed\");\n        msg.capture_fill_done = true;\n    }\n\n    if (entity.includes(\"nutrient_pump_a\")) {\n        node.warn(\"Pump A completed\");\n        msg.capture_dose_a_done = true;\n    }\n\n    if (entity.includes(\"nutrient_pump_b\")) {\n        node.warn(\"Pump B completed\");\n        msg.capture_dose_b_done = true;\n    }\n\n    flow.set(\"outside_pending_cycle\", cycle);\n\n    msg.payload = cycle;\n    return msg;\n}\n\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 1140,
+        "wires": [
+            [
+                "bebd493ef170ce35",
+                "108902341a8555bc",
+                "5138906fb57d9050",
+                "0b6e8f94a2664c2c"
+            ]
+        ]
+    },
+    {
+        "id": "bebd493ef170ce35",
+        "type": "switch",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Before Cycle",
+        "property": "capture_before",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "true"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 670,
+        "y": 1040,
+        "wires": [
+            [
+                "b2006c9fa37c6be5"
+            ]
+        ]
+    },
+    {
+        "id": "b2006c9fa37c6be5",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get System Gallons",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.outside_tank_gallons",
+        "state_type": "num",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "event.system_gallons",
+                "propertyType": "msg",
+                "value": "number",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 940,
+        "y": 1040,
+        "wires": [
+            [
+                "c6c23d24d5312df7"
+            ]
+        ]
+    },
+    {
+        "id": "c6c23d24d5312df7",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get TDS Raw Beforre",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.hydroponics_patio_esp32_tds_raw",
+        "state_type": "num",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "event.tds_before",
+                "propertyType": "msg",
+                "value": "number",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 1160,
+        "y": 1040,
+        "wires": [
+            [
+                "25904d5c73a99e48"
+            ]
+        ]
+    },
+    {
+        "id": "25904d5c73a99e48",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Save Before Values to Cycle",
+        "func": "let cycle = flow.get(\"outside_pending_cycle\") || {};\n\ncycle.system_gallons = msg.event?.system_gallons ?? null;\ncycle.tds_before = msg.event?.tds_before ?? null;\n\nflow.set(\"outside_pending_cycle\", cycle);\n\nmsg.payload = cycle;\nreturn msg;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1420,
+        "y": 1040,
+        "wires": [
+            [
+                "8171cac4eeb520b6"
+            ]
+        ]
+    },
+    {
+        "id": "8171cac4eeb520b6",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "debug Save Before Values to Cycle",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1720,
+        "y": 1040,
+        "wires": []
+    },
+    {
+        "id": "108902341a8555bc",
+        "type": "switch",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Capture Fill Done",
+        "property": "capture_fill_done",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "true"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 690,
+        "y": 1120,
+        "wires": [
+            [
+                "06ce985e2c2832fd"
+            ]
+        ]
+    },
+    {
+        "id": "5138906fb57d9050",
+        "type": "switch",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Capture Dose A Done",
+        "property": "capture_dose_a_done",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "true"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 700,
+        "y": 1180,
+        "wires": [
+            [
+                "7d0f2dfc32717c01"
+            ]
+        ]
+    },
+    {
+        "id": "0b6e8f94a2664c2c",
+        "type": "switch",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Capture Dose B Done",
+        "property": "capture_dose_b_done",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "true"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 700,
+        "y": 1240,
+        "wires": [
+            [
+                "3d7cb6412c0a8944"
+            ]
+        ]
+    },
+    {
+        "id": "747cec89d5cfd3bf",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Save Gal Added",
+        "func": "let cycle = flow.get(\"outside_pending_cycle\") || {};\ncycle.gallons_added = msg.event?.gallons_added ?? null;\nflow.set(\"outside_pending_cycle\", cycle);\nmsg.payload = cycle;\nreturn msg;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1140,
+        "y": 1120,
+        "wires": [
+            [
+                "78d4229b4f07c1d0"
+            ]
+        ]
+    },
+    {
+        "id": "56455ec6544d76a0",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Save Dose A",
+        "func": "let cycle = flow.get(\"outside_pending_cycle\") || {};\ncycle.dose_a_ml = msg.event?.dose_a_ml ?? null;\nflow.set(\"outside_pending_cycle\", cycle);\nmsg.payload = cycle;\nreturn msg;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1130,
+        "y": 1180,
+        "wires": [
+            [
+                "78d4229b4f07c1d0"
+            ]
+        ]
+    },
+    {
+        "id": "fa7db4cb0b5a1151",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Save Dose B",
+        "func": "let cycle = flow.get(\"outside_pending_cycle\") || {};\ncycle.dose_b_ml = msg.event?.dose_b_ml ?? null;\nflow.set(\"outside_pending_cycle\", cycle);\nmsg.payload = cycle;\nreturn msg;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1130,
+        "y": 1240,
+        "wires": [
+            [
+                "78d4229b4f07c1d0"
+            ]
+        ]
+    },
+    {
+        "id": "06ce985e2c2832fd",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get Fill Gallons",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.hydroponics_patio_esp32_fill_gallons",
+        "state_type": "num",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "event.gallons_added",
+                "propertyType": "msg",
+                "value": "number",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 920,
+        "y": 1120,
+        "wires": [
+            [
+                "747cec89d5cfd3bf"
+            ]
+        ]
+    },
+    {
+        "id": "7d0f2dfc32717c01",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get Dose A",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.hydroponics_patio_esp32_dose_a_ml",
+        "state_type": "num",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "event.dose_a_ml",
+                "propertyType": "msg",
+                "value": "number",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 910,
+        "y": 1180,
+        "wires": [
+            [
+                "56455ec6544d76a0"
+            ]
+        ]
+    },
+    {
+        "id": "3d7cb6412c0a8944",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get Dose B",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.hydroponics_patio_esp32_dose_b_ml",
+        "state_type": "num",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "event.dose_b_ml",
+                "propertyType": "msg",
+                "value": "number",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 910,
+        "y": 1240,
+        "wires": [
+            [
+                "fa7db4cb0b5a1151"
+            ]
+        ]
+    },
+    {
+        "id": "1e13ec350eef01e2",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "debug debug Cycle Logged",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2080,
+        "y": 1320,
+        "wires": []
+    },
+    {
+        "id": "aa24277679832b81",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Save TDS After",
+        "func": "let cycle = flow.get(\"outside_pending_cycle\") || {};\n\ncycle.tds_after = msg.event?.tds_after ?? null;\n\nflow.set(\"outside_pending_cycle\", cycle);\n\nmsg.payload = cycle;\nreturn msg;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1880,
+        "y": 1120,
+        "wires": [
+            [
+                "a58e28e9bd0a427b"
+            ]
+        ]
+    },
+    {
+        "id": "a58e28e9bd0a427b",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Build Cycle INSERT SQL",
+        "func": "const e = flow.get(\"outside_pending_cycle\") || {};\n\nfunction txt(v) {\n    if (v === undefined || v === null || v === \"\") return \"NULL\";\n    return \"'\" + String(v).replace(/'/g, \"''\") + \"'\";\n}\n\nfunction num(v) {\n    const n = Number(v);\n    return Number.isFinite(n) ? String(n) : \"NULL\";\n}\n\nfunction fmtNum(v, decimals) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(decimals) : null;\n}\n\nlet parts = [];\n\nif (e.mode) {\n    parts.push(e.mode);\n}\n\nif (e.event_type) {\n    parts.push(e.event_type);\n}\n\nlet details = [];\n\nif (Number(e.gallons_added) > 0) {\n    details.push(`added ${fmtNum(e.gallons_added, 2)} gal water`);\n}\n\nif (Number(e.dose_a_ml) > 0) {\n    details.push(`dose A ${fmtNum(e.dose_a_ml, 0)} mL`);\n}\n\nif (Number(e.dose_b_ml) > 0) {\n    details.push(`dose B ${fmtNum(e.dose_b_ml, 0)} mL`);\n}\n\nif (Number.isFinite(Number(e.system_gallons))) {\n    details.push(`system ${fmtNum(e.system_gallons, 1)} gal`);\n}\n\nif (Number.isFinite(Number(e.tds_before)) && Number.isFinite(Number(e.tds_after))) {\n    details.push(`TDS ${fmtNum(e.tds_before, 3)} → ${fmtNum(e.tds_after, 3)} V`);\n} else if (Number.isFinite(Number(e.tds_before))) {\n    details.push(`TDS before ${fmtNum(e.tds_before, 3)} V`);\n} else if (Number.isFinite(Number(e.tds_after))) {\n    details.push(`TDS after ${fmtNum(e.tds_after, 3)} V`);\n}\n\nconst note = `${parts.join(\" \")}: ${details.join(\"; \")}`;\nmsg.topic = `\nINSERT INTO maintenance_log\n(\n  timestamp_utc,\n  internal_time,\n  source,\n  location,\n  device,\n  event_type,\n  mode,\n  system_gallons,\n  gallons_added,\n  dose_a_ml,\n  dose_b_ml,\n  tds_before,\n  tds_after,\n  note,\n  raw_message\n)\nVALUES\n(\n  UTC_TIMESTAMP(),\n  NOW(),\n  ${txt(e.source)},\n  ${txt(e.location)},\n  ${txt(e.device)},\n  ${txt(e.event_type)},\n  ${txt(e.mode)},\n  ${num(e.system_gallons)},\n  ${num(e.gallons_added)},\n  ${num(e.dose_a_ml)},\n  ${num(e.dose_b_ml)},\n  ${num(e.tds_before)},\n  ${num(e.tds_after)},\n  ${txt(note)},\n  ${txt(JSON.stringify(e))}\n);\n`;\n\nmsg.payload = msg.topic;\nreturn msg;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2110,
+        "y": 1120,
+        "wires": [
+            [
+                "376b2c44ba7f8b33"
+            ]
+        ]
+    },
+    {
+        "id": "376b2c44ba7f8b33",
+        "type": "mysql",
+        "z": "3ec2ad8e53afdcdc",
+        "mydb": "mysql_logbook_placeholder",
+        "name": "Insert Fill Event",
+        "x": 1420,
+        "y": 1240,
+        "wires": [
+            [
+                "6d516f13453be6a0"
+            ]
+        ]
+    },
+    {
+        "id": "87af5340f680e239",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Clear Pending Cycle",
+        "func": "flow.set(\"outside_pending_cycle\", null);\nflow.set(\"outside_cycle_active\", false);\n\nmsg.payload = \"cycle logged, notified, and cleared\";\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2120,
+        "y": 1240,
+        "wires": [
+            [
+                "1e13ec350eef01e2"
+            ]
+        ]
+    },
+    {
+        "id": "d419416313bceb5d",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get TDS Raw After",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.hydroponics_patio_esp32_tds_raw",
+        "state_type": "num",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "event.tds_after",
+                "propertyType": "msg",
+                "value": "number",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 1630,
+        "y": 1120,
+        "wires": [
+            [
+                "aa24277679832b81"
+            ]
+        ]
+    },
+    {
+        "id": "78d4229b4f07c1d0",
+        "type": "trigger",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Quiet Mixing Timer",
+        "op1": "",
+        "op2": "",
+        "op1type": "nul",
+        "op2type": "pay",
+        "duration": "10",
+        "extend": true,
+        "overrideDelay": false,
+        "units": "min",
+        "reset": "",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 1390,
+        "y": 1120,
+        "wires": [
+            [
+                "d419416313bceb5d"
+            ]
+        ]
+    },
+    {
+        "id": "6d516f13453be6a0",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Build Notification Text",
+        "func": "const e = flow.get(\"outside_pending_cycle\") || {};\n\nfunction fmt(v, d = 2) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(d) : \"n/a\";\n}\n\nlet lines = [];\n\nlines.push(`${e.mode} ${e.event_type} completed`);\n\nif (e.gallons_added > 0) {\n    lines.push(`Water Added: ${fmt(e.gallons_added)} gal`);\n}\n\nif (e.dose_a_ml > 0) {\n    lines.push(`Dose A: ${fmt(e.dose_a_ml, 0)} mL`);\n}\n\nif (e.dose_b_ml > 0) {\n    lines.push(`Dose B: ${fmt(e.dose_b_ml, 0)} mL`);\n}\n\nlines.push(`System Volume: ${fmt(e.system_gallons, 1)} gal`);\n\nif (e.tds_before || e.tds_after) {\n    lines.push(`TDS: ${fmt(e.tds_before, 3)} → ${fmt(e.tds_after, 3)}`);\n}\n\nmsg.payload = lines.join(\"\\n\");\n\nreturn msg;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1640,
+        "y": 1240,
+        "wires": [
+            [
+                "notify_hydro_cycle_complete"
+            ]
+        ]
+    },
+    {
+        "id": "7eabbb3955a2def6",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Pump A State",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 400,
+        "y": 980,
+        "wires": []
+    },
+    {
+        "id": "39fb51d503f3a1fc",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Pump B State",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 440,
+        "y": 1040,
+        "wires": []
+    },
+    {
+        "id": "a112415935625cec",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Solinoid Valve State",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 400,
+        "y": 1280,
+        "wires": []
+    },
+    {
+        "id": "notify_hydro_cycle_complete",
+        "type": "api-call-service",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Notify Maint Cycle",
+        "server": "28f1afb.2a0725",
+        "version": 7,
+        "debugenabled": false,
+        "action": "persistent_notification.create",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [],
+        "labelId": [],
+        "data": "{\n  \"title\": \"Maintenance Cycle Complete\",\n  \"message\": payload\n}",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "persistent_notification",
+        "service": "create",
+        "x": 1870,
+        "y": 1240,
+        "wires": [
+            [
+                "87af5340f680e239"
+            ]
+        ]
+    },
+    {
+        "id": "28f1afb.2a0725",
+        "type": "server",
+        "name": "Home Assistant",
+        "version": 6,
+        "addon": true,
+        "rejectUnauthorizedCerts": true,
+        "ha_boolean": [
+            "y",
+            "yes",
+            "true",
+            "on",
+            "home",
+            "open"
+        ],
+        "connectionDelay": true,
+        "cacheJson": true,
+        "heartbeat": false,
+        "heartbeatInterval": 30,
+        "areaSelector": "friendlyName",
+        "deviceSelector": "friendlyName",
+        "entitySelector": "friendlyName",
+        "statusSeparator": "at: ",
+        "statusYear": "hidden",
+        "statusMonth": "short",
+        "statusDay": "numeric",
+        "statusHourCycle": "h23",
+        "statusTimeFormat": "h:m",
+        "enableGlobalContextStore": true
+    },
+    {
+        "id": "mysql_logbook_placeholder",
+        "type": "MySQLdatabase",
+        "name": "MariaDB logbook",
+        "host": "core-mariadb",
+        "port": "3306",
+        "db": "logbook",
+        "tz": "",
+        "charset": "UTF8"
+    },
+    {
+        "id": "d78a61f5bed98dfc",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-home-assistant-websocket": "0.80.3",
+            "node-red-node-mysql": "3.0.0"
+        }
+    }
+]

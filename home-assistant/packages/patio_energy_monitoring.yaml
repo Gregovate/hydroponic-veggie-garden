@@ -1,0 +1,39 @@
+# ============================================================
+# ⚡ Hydroponics Patio Energy Monitoring
+# File: patio_energy_monitoring.yaml
+# Purpose:
+#   Monitor hydroponics power usage and provide
+#   seasonal energy tracking.
+#
+# Created: 2026-06-04
+# ============================================================
+
+utility_meter:
+
+  # ----------------------------------------
+  # Daily Energy Usage
+  # ----------------------------------------
+  hydroponics_outside_energy_daily:
+    source: sensor.plug_hydroponics_outside_energy
+    cycle: daily
+
+  # ----------------------------------------
+  # Weekly Energy Usage
+  # ----------------------------------------
+  hydroponics_outside_energy_weekly:
+    source: sensor.plug_hydroponics_outside_energy
+    cycle: weekly
+
+  # ----------------------------------------
+  # Monthly Energy Usage
+  # ----------------------------------------
+  hydroponics_outside_energy_monthly:
+    source: sensor.plug_hydroponics_outside_energy
+    cycle: monthly
+
+  # ----------------------------------------
+  # Seasonal / Yearly Energy Usage
+  # ----------------------------------------
+  hydroponics_outside_energy_season:
+    source: sensor.plug_hydroponics_outside_energy
+    cycle: yearly

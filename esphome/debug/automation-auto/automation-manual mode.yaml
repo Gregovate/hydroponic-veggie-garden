@@ -1,0 +1,72 @@
+alias: 💧 Manual Fill + Dose Cycle
+description: >
+  Logs ESP fill/dose data when the valve shuts off in Manual mode. Start time is
+  set when valve turns on, end time when valve turns off.
+triggers:
+  - entity_id: switch.hydroponics_patio_esp32_water_fill_solenoid
+    from: "off"
+    to: "on"
+    id: fill_started
+    trigger: state
+  - entity_id: switch.hydroponics_patio_esp32_water_fill_solenoid
+    from: "on"
+    to: "off"
+    id: fill_stopped
+    trigger: state
+conditions:
+  - condition: state
+    entity_id: input_select.hydroponics_outside_control_mode
+    state: Manual
+  - condition: state
+    entity_id: input_boolean.hydroponics_outside_system
+    state: "on"
+actions:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'fill_started' }}"
+        sequence:
+          - target:
+              entity_id: input_datetime.outside_tank_fill_started
+            data:
+              datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+            action: input_datetime.set_datetime
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'fill_stopped' }}"
+          - condition: state
+            entity_id: input_select.hydroponics_outside_control_mode
+            state: Manual
+        sequence:
+          - target:
+              entity_id: input_datetime.outside_tank_fill_stopped
+            data:
+              datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+            action: input_datetime.set_datetime
+          - data:
+              title: 💧 Manual Fill Logged
+              message: >
+                {{ fill_gal }} gallons filled on {{ short_date_12hr }}. Mode:
+                Manual Dose A: {{ dose_a }} mL Dose B: {{ dose_b }} mL
+            action: persistent_notification.create
+          - target:
+              entity_id: notify.file_2
+            data:
+              message: >
+                "{{ now().isoformat() }} \"{{ short_date_24hr
+                }},FILL,outside,manual,{{ fill_gal }},,{{ dose_a }},{{ dose_b
+                }},,manual fill started\""
+            action: notify.send_message
+variables:
+  fill_gal: >-
+    {{ states('sensor.hydroponics_patio_esp32_fill_gallons') | float(0) |
+    round(2) }}
+  dose_a: >-
+    {{ states('sensor.hydroponics_patio_esp32_dose_a_ml') | float(0) | round(2)
+    }}
+  dose_b: >-
+    {{ states('sensor.hydroponics_patio_esp32_dose_b_ml') | float(0) | round(2)
+    }}
+  short_date_12hr: "{{ now().strftime('%Y-%m-%d %I:%M %p') }}"
+  short_date_24hr: "{{ now().strftime('%Y-%m-%d %H:%M') }}"
+mode: single

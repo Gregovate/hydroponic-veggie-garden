@@ -1,0 +1,106 @@
+# /config/packages/hydroponics/harvest_inputs.yaml
+# 🧺 Harvest logging – HELPERS + READ-ONLY SQL SENSORS (no automations/scripts)
+# Purpose: Provide input controls for harvest entries and expose DB-driven
+#          lists of varieties per crop for a dynamic dropdown.
+# Notes:
+#   • Helpers in YAML do not accept unique_id; that’s normal.
+#   • No automations or scripts are defined here by design.
+#   • Requires a secret in secrets.yaml:
+#       mariadb_url: "mysql://logbook_user:YOURPASS@127.0.0.1/logbook?charset=utf8"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Helpers: selection inputs and fields used by the UI automation
+# ──────────────────────────────────────────────────────────────────────────────
+input_select:
+  harvest_location:
+    name: Harvest Location
+    options: [outside, inside, rv]
+    icon: mdi:map-marker
+
+  harvest_crop:
+    name: Crop
+    options: [Tomato, Cucumber, Pepper]
+    icon: mdi:sprout
+
+  # NEW: DB-driven variety picker (automation will populate options)
+  harvest_variety_picker:
+    name: Variety
+    options: ["(choose)"]
+    icon: mdi:tag
+
+input_text:
+  # Keep a free-text variety field for the first time a variety appears.
+  # The UI automation will prefer the picker if not "(choose)"; otherwise it uses this text.
+  harvest_variety:
+    name: Variety (if not in list)
+    max: 64
+    icon: mdi:tag-text
+
+  harvest_note:
+    name: Note
+    max: 255
+    icon: mdi:note-text
+
+input_number:
+  harvest_count:
+    name: Quantity Picked
+    min: 0
+    max: 500
+    step: 1
+    icon: mdi:counter
+
+  harvest_weight_g:
+    name: Weight (g, optional)
+    min: 0
+    max: 20000
+    step: 1
+    icon: mdi:scale
+
+input_button:
+  log_harvest_to_db:
+    name: Log Harvest
+    icon: mdi:database-plus
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Read-only SQL sensors: distinct varieties per crop (as CSV strings)
+# /config/packages/hydroponics/harvest_inputs.yaml
+# ──────────────────────────────────────────────────────────────────────────────
+# sensor:
+#   - platform: sql
+#     db_url: !secret maria_db_sql
+#     queries:
+#       - name: db_smoketest
+#         column: ok
+#         query: "SELECT 1 AS ok;"
+        
+      # - name: harvest_varieties_tomato_csv
+      #   column: csv
+      #   query: >
+      #     SELECT COALESCE(
+      #       GROUP_CONCAT(DISTINCT variety ORDER BY variety SEPARATOR ','),
+      #       ''
+      #     ) AS csv
+      #     FROM maintenance_log
+      #     WHERE crop='Tomato' AND variety IS NOT NULL AND variety <> '';
+
+
+      # - name: harvest_varieties_cucumber_csv
+      #   query: >
+      #     SELECT COALESCE(
+      #       GROUP_CONCAT(DISTINCT variety ORDER BY variety SEPARATOR ','),
+      #       ''
+      #     ) AS csv
+      #     FROM maintenance_log
+      #     WHERE crop='Cucumber' AND variety IS NOT NULL AND variety <> '';
+      #   column: csv
+
+      # - name: harvest_varieties_pepper_csv
+      #   query: >
+      #     SELECT COALESCE(
+      #       GROUP_CONCAT(DISTINCT variety ORDER BY variety SEPARATOR ','),
+      #       ''
+      #     ) AS csv
+      #     FROM maintenance_log
+      #     WHERE crop='Pepper' AND variety IS NOT NULL AND variety <> '';
+      #   column: csv
+

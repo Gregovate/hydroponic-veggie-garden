@@ -1,0 +1,242 @@
+# /config/packages/hydroponics/patio_controller.yaml
+# Author: Greg
+# Last Updated: 2025-07-19
+# Purpose: Track outdoor hydroponics system including tank gallons, 
+# calibration, filtering, and refill prediction
+# Adding stats and fill predictions
+# totally reviewed/renamed sensors to new naming convention 25-07-30
+# Kept system controls in this package and split off the dosing calculator
+# into a new file called sosing controls 25-08-04
+
+template:
+  - sensor:
+    # 📏 Gallons Calibration Sensor (From HX711 Raw Reading)
+    - name: "Outside Tank Gallons"
+      unique_id: outside_tank_gallons
+      unit_of_measurement: "gal"
+      state_class: measurement
+      #device_class: volume
+      state: >
+        {% set raw = states('sensor.hydroponics_patio_esp32_raw_hx711_sensor') | float(999900) %}
+        {% set all_points = [
+          (0, states('input_number.raw_00_gallons') | float(0)),
+          (5, states('input_number.raw_05_gallons') | float(0)),
+          (10, states('input_number.raw_10_gallons') | float(0)),
+          (15, states('input_number.raw_15_gallons') | float(0)),
+          (20, states('input_number.raw_20_gallons') | float(0)),
+          (25, states('input_number.raw_25_gallons') | float(0)),
+        ] %}
+        {% set points = all_points | rejectattr(1, 'equalto', 0) | list %}
+        {% if points | length < 2 %}
+          None
+        {% else %}
+          {% set sorted = points | sort(attribute=1) %}
+          {% set g_min, r_min = sorted[0] %}
+          {% set g_max, r_max = sorted[-1] %}
+          {% if raw <= r_min %}
+            {{ g_min }}
+          {% elif raw >= r_max %}
+            {{ g_max }}
+          {% else %}
+            {% for i in range(sorted | length - 1) %}
+              {% set g1, r1 = sorted[i] %}
+              {% set g2, r2 = sorted[i + 1] %}
+              {% if r1 <= raw <= r2 or r2 <= raw <= r1 %}
+                {% set slope = (g2 - g1) / (r2 - r1) %}
+                {% set gallons = g1 + slope * (raw - r1) %}
+                {{ gallons | round(1) }}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+        {% endif %}
+
+    # ⏳ Time Until Empty (Estimate)
+    - name: "Time Until Empty"
+      unique_id: outside_tank_time_to_empty
+      unit_of_measurement: "h"
+      icon: mdi:timer-sand
+      state_class: measurement
+      state: >
+        {% set gallons = states('sensor.outside_filtered_tank_gallons') | float(0) %}
+        {% set rate = states('sensor.outside_gallons_usage_rate') | float(0) %}
+        {% if gallons > 0 and rate > 0 %}
+          {{ (gallons / rate) | round(1) }}
+        {% else %}
+          {{ none }}
+        {% endif %}
+
+    # 📅 Predicted Empty Timestamp
+    - name: "Outside Tank Predicted Empty"
+      unique_id: outside_tank_predicted_empty
+      icon: mdi:clock-alert
+      device_class: timestamp
+      state: >
+        {% set rate = states('sensor.tank_drain_rate') | float(0) %}
+        {% set gallons = states('sensor.outside_tank_gallons') | float(0) %}
+        {% set last_str = states('input_datetime.last_outside_fill') %}
+        {% set last_fill = strptime(last_str, '%Y-%m-%d %H:%M:%S') if last_str not in ['unknown', 'unavailable', 'none'] else none %}
+        {% set elapsed = (now() - last_fill).total_seconds() if last_fill else 0 %}
+        {% set target_gallons = 8.0 %}
+        {% set delta_gallons = gallons - target_gallons %}
+
+        {% if rate > 0 and delta_gallons > 0 and elapsed > 21600 %}
+          {{ (now() + timedelta(hours=delta_gallons / rate)).isoformat() }}
+        {% else %}
+          {{ none }}
+        {% endif %}
+
+
+    # 🕓 Fill Duration in Minutes
+    - name: "Outside Tank Last Fill Duration"
+      unique_id: outside_tank_last_fill_duration
+      icon: mdi:timer-outline
+      unit_of_measurement: "min"
+      state: >
+        {% set start = states('input_datetime.outside_tank_fill_started') %}
+        {% set end = states('input_datetime.outside_tank_fill_stopped') %}
+        {% if start not in ['unknown', 'unavailable'] and end not in ['unknown', 'unavailable'] %}
+          {% set s = strptime(start, '%Y-%m-%d %H:%M:%S') %}
+          {% set e = strptime(end, '%Y-%m-%d %H:%M:%S') %}
+          {{ ((e - s).total_seconds() / 60) | round(1) }}
+        {% else %}
+          none
+        {% endif %}
+
+sensor:
+  # 📉 Filtered Gallons Sensor (Removes minor jitter)
+  - platform: filter
+    name: "Outside Filtered Tank Gallons"
+    unique_id: outside_filtered_tank_gallons
+    entity_id: sensor.outside_tank_gallons
+    filters:
+      - filter: outlier
+        window_size: 4
+        radius: 0.3
+      - filter: lowpass
+        time_constant: 30
+        precision: 1
+
+  # 📊 Gallons Usage Rate (6h window)
+  - platform: statistics
+    name: "Patio Gallons Usage Rate"
+    unique_id: patio_gallons_usage_rate
+    entity_id: sensor.outside_filtered_tank_gallons
+    sampling_size: 30
+    max_age:
+      hours: 6
+    state_characteristic: mean
+
+
+# 🔁 Control Mode Toggle (Auto/Manual)
+# Used to determine if filling/dosing should run automatically or notify user for manual intervention
+input_select:
+  hydroponics_outside_control_mode:
+    name: Hydroponics Outside Control Mode
+    options:
+      - Auto
+      - Manual
+      - ESP-Override
+    initial: Auto
+    icon: mdi:autorenew
+
+
+input_datetime:
+# 🕒 Timestamps for Last Fill Cycle
+  outside_tank_fill_started:
+    name: "Outside Tank Fill Started"
+    has_date: true
+    has_time: true
+
+  outside_tank_fill_stopped:
+    name: "Outside Tank Fill Stopped"
+    has_date: true
+    has_time: true
+
+# Time what happened (threshold crossed),
+# when it happened (stored as datetime),
+# and aligns with your intention to delay action for 30 minutes after that point.
+  auto_fill_threshold_crossed_at:
+    name: "Auto Fill Threshold Crossed At"
+    has_date: true
+    has_time: true
+
+# 🕒 Timestamps for Last Dosing Cycle
+  last_outside_dose_a:
+    name: "Last Outside Dose A"
+    has_date: true
+    has_time: true
+
+  last_outside_dose_b:
+    name: "Last Outside Dose B"
+    has_date: true
+    has_time: true
+
+
+input_number:
+  # Selects the number of gallons to add to the tank
+  outside_manual_fill_gallons:
+    name: "Outside Manual Fill Gallons"
+    icon: mdi:format-color-fill
+    min: 0
+    max: 25
+    step: 0.5
+    unit_of_measurement: "gal"
+    mode: slider
+
+  # Threshold minimum gallons to trigger Auto-Fill
+  # System must be in auto mode to trigger. Added: 2025-08-01   
+  auto_fill_threshold_gallons:
+    name: "Auto Fill Threshold"
+    min: 5
+    max: 20
+    step: 0.5
+    unit_of_measurement: "gal"
+    mode: slider
+
+  tank_full_target:
+    name: Tank Full Target
+    min: 1
+    max: 22
+    step: 0.5
+    unit_of_measurement: "gal"
+    mode: slider
+    icon: mdi:water-plus
+
+
+
+  # # 💧 Last Fill Gallons Tracker
+  # outside_tank_last_fill_gallons:
+  #   name: "Outside Tank Last Fill Gallons"
+  #   min: 0
+  #   max: 30
+  #   step: 0.1
+  #   unit_of_measurement: "gal"
+  #   mode: box  # Use slider if preferred: mode: slider
+
+  # record last volume dosed for pump A
+  manual_dose_outside_a_ml:
+    name: "Manual Dose Outside A ml"
+    icon: mdi:test-tube
+    min: 0
+    max: 250
+    step: 5
+    unit_of_measurement: "ml"
+    mode: slider
+  # record last volume dosed for pump B
+
+  manual_dose_outside_b_ml:
+    name: "Manual Dose Outside B ml"
+    icon: mdi:test-tube
+    min: 0
+    max: 250
+    step: 5
+    unit_of_measurement: "ml"
+    mode: slider
+
+
+# Added 25-08-04 to set a watchdog for autofill 
+input_boolean:
+  allow_auto_fill:
+    name: Allow Auto Fill Trigger
+    initial: off
+    icon: mdi:check-circle-outline

@@ -1,0 +1,437 @@
+[
+    {
+        "id": "tds_ref_capture_evt",
+        "type": "server-state-changed",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Capture TDS Reference Button",
+        "server": "28f1afb.2a0725",
+        "version": 6,
+        "outputs": 1,
+        "exposeAsEntityConfig": "",
+        "entities": {
+            "entity": [
+                "input_button.capture_outside_tds_reference_reading"
+            ],
+            "substring": [],
+            "regex": []
+        },
+        "outputInitially": false,
+        "stateType": "str",
+        "ifState": "",
+        "ifStateType": "str",
+        "ifStateOperator": "is",
+        "outputOnlyOnStateChange": true,
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "ignorePrevStateNull": true,
+        "ignorePrevStateUnknown": true,
+        "ignorePrevStateUnavailable": true,
+        "ignoreCurrentStateUnknown": false,
+        "ignoreCurrentStateUnavailable": false,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "eventData"
+            }
+        ],
+        "x": 150,
+        "y": 1420,
+        "wires": [
+            [
+                "tds_ref_get_voltage"
+            ]
+        ]
+    },
+    {
+        "id": "tds_ref_get_voltage",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get TDS Raw Voltage",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.hydroponics_patio_esp32_tds_raw",
+        "state_type": "str",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "tds_voltage",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 400,
+        "y": 1420,
+        "wires": [
+            [
+                "tds_ref_get_gallons"
+            ]
+        ]
+    },
+    {
+        "id": "tds_ref_get_gallons",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get Outside Tank Gallons",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.outside_tank_gallons",
+        "state_type": "str",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "tank_gallons",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 660,
+        "y": 1420,
+        "wires": [
+            [
+                "tds_ref_get_meter"
+            ]
+        ]
+    },
+    {
+        "id": "tds_ref_get_meter",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get Manual Meter Entry",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "input_number.outside_tds_meter_entry",
+        "state_type": "str",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "meter_value",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 920,
+        "y": 1420,
+        "wires": [
+            [
+                "tds_ref_get_units"
+            ]
+        ]
+    },
+    {
+        "id": "tds_ref_get_units",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get Meter Units",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "input_select.outside_tds_meter_units",
+        "state_type": "str",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "meter_units",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 1150,
+        "y": 1420,
+        "wires": [
+            [
+                "tds_ref_get_note"
+            ]
+        ]
+    },
+    {
+        "id": "tds_ref_get_note",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get Reference Note",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "input_text.outside_tds_reference_note",
+        "state_type": "str",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "reference_note",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 1380,
+        "y": 1420,
+        "wires": [
+            [
+                "aeca6bd7eb65702e"
+            ]
+        ]
+    },
+    {
+        "id": "tds_ref_build_sql",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Build TDS Reference INSERT SQL",
+        "func": "const now = Date.now();\nconst lastCapture = flow.get(\"outside_tds_reference_last_capture_ms\") || 0;\n\nif (now - lastCapture < 15000) {\n    node.warn(\"Ignored duplicate TDS reference capture inside 15 second lockout.\");\n    return null;\n}\n\nflow.set(\"outside_tds_reference_last_capture_ms\", now);\n\nfunction cleanNumber(value) {\n    if (value === undefined || value === null) return null;\n    const n = parseFloat(String(value).replace(/[^0-9.\\-]/g, \"\"));\n    return Number.isFinite(n) ? n : null;\n}\n\nfunction sqlText(value) {\n    if (value === undefined || value === null) return \"NULL\";\n    const s = String(value).trim();\n    if (s.length === 0) return \"NULL\";\n    return \"'\" + s.replace(/'/g, \"''\").slice(0, 255) + \"'\";\n}\n\nconst voltage = cleanNumber(msg.tds_voltage);\nconst meterValue = cleanNumber(msg.meter_value);\nconst gallons = cleanNumber(msg.tank_gallons);\nconst waterTemp = cleanNumber(msg.water_temp_f);\nconst units = String(msg.meter_units || \"ppm\").trim();\nconst note = msg.reference_note;\n\nif (voltage === null) {\n    node.error(\"TDS reference capture failed: invalid TDS voltage\", msg);\n    return null;\n}\n\nif (meterValue === null || meterValue <= 0) {\n    node.error(\"TDS reference capture failed: manual meter value is missing or invalid\", msg);\n    return null;\n}\n\nmsg.topic = `\nINSERT INTO hydro_tds_reference_reading\n    (system_key, probe_voltage, meter_value, meter_units, tank_gallons, water_temp_f, note)\nVALUES\n    (\n        'outside',\n        ${voltage.toFixed(3)},\n        ${meterValue.toFixed(2)},\n        ${sqlText(units)},\n        ${gallons === null ? \"NULL\" : gallons.toFixed(2)},\n        ${waterTemp === null ? \"NULL\" : waterTemp.toFixed(1)},\n        ${sqlText(note)}\n    );\n`;\n\nmsg.payload = {\n    system_key: \"outside\",\n    probe_voltage: voltage,\n    meter_value: meterValue,\n    meter_units: units,\n    tank_gallons: gallons,\n    water_temp_f: waterTemp,\n    note: note\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1850,
+        "y": 1420,
+        "wires": [
+            [
+                "tds_ref_sql_preview",
+                "tds_ref_insert"
+            ]
+        ]
+    },
+    {
+        "id": "tds_ref_sql_preview",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "TDS Reference SQL Preview",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "topic",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2160,
+        "y": 1380,
+        "wires": []
+    },
+    {
+        "id": "tds_ref_insert",
+        "type": "mysql",
+        "z": "3ec2ad8e53afdcdc",
+        "mydb": "mysql_logbook_placeholder",
+        "name": "Insert TDS Reference Reading",
+        "x": 2160,
+        "y": 1460,
+        "wires": [
+            [
+                "tds_ref_insert_result",
+                "clear_tds_reference_note"
+            ]
+        ]
+    },
+    {
+        "id": "tds_ref_insert_result",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "TDS Reference Insert Result",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2510,
+        "y": 1460,
+        "wires": []
+    },
+    {
+        "id": "clear_tds_reference_note",
+        "type": "api-call-service",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Clear TDS Reference Note",
+        "server": "28f1afb.2a0725",
+        "version": 7,
+        "debugenabled": false,
+        "action": "input_text.set_value",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [],
+        "labelId": [],
+        "data": "{\"entity_id\":\"input_text.outside_tds_reference_note\",\"value\":\"\"}",
+        "dataType": "json",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": false,
+        "domain": "input_text",
+        "service": "set_value",
+        "x": 2160,
+        "y": 1560,
+        "wires": [
+            [
+                "reset_tds_units"
+            ]
+        ]
+    },
+    {
+        "id": "reset_tds_units",
+        "type": "api-call-service",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Reset Units to EC",
+        "server": "28f1afb.2a0725",
+        "version": 7,
+        "debugenabled": false,
+        "action": "input_select.select_option",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [],
+        "labelId": [],
+        "data": "{\"entity_id\":\"input_select.outside_tds_meter_units\",\"option\":\"EC\"}",
+        "dataType": "json",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": false,
+        "domain": "input_select",
+        "service": "select_option",
+        "x": 2430,
+        "y": 1560,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "aeca6bd7eb65702e",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get Tank Temp",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "num",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.hydroponics_patio_esp32_tank_temp",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "water_temp_f",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 1600,
+        "y": 1420,
+        "wires": [
+            [
+                "tds_ref_build_sql"
+            ]
+        ]
+    },
+    {
+        "id": "28f1afb.2a0725",
+        "type": "server",
+        "name": "Home Assistant",
+        "version": 6,
+        "addon": true,
+        "rejectUnauthorizedCerts": true,
+        "ha_boolean": [
+            "y",
+            "yes",
+            "true",
+            "on",
+            "home",
+            "open"
+        ],
+        "connectionDelay": true,
+        "cacheJson": true,
+        "heartbeat": false,
+        "heartbeatInterval": 30,
+        "areaSelector": "friendlyName",
+        "deviceSelector": "friendlyName",
+        "entitySelector": "friendlyName",
+        "statusSeparator": "at: ",
+        "statusYear": "hidden",
+        "statusMonth": "short",
+        "statusDay": "numeric",
+        "statusHourCycle": "h23",
+        "statusTimeFormat": "h:m",
+        "enableGlobalContextStore": true
+    },
+    {
+        "id": "mysql_logbook_placeholder",
+        "type": "MySQLdatabase",
+        "name": "MariaDB logbook",
+        "host": "core-mariadb",
+        "port": "3306",
+        "db": "logbook",
+        "tz": "",
+        "charset": "UTF8"
+    },
+    {
+        "id": "4ca114e5385df2dd",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-home-assistant-websocket": "0.80.3",
+            "node-red-node-mysql": "3.0.0"
+        }
+    }
+]

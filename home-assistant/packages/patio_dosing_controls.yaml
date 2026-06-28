@@ -1,0 +1,536 @@
+# /config/packages/hydroponics/patio_dosing_controls.yaml
+# ==============================================================================
+# 💧 Patio Hydroponics Dosing Controls
+# ==============================================================================
+#
+# Purpose
+# -------
+# Provides helper entities, calculated sensors, inventory tracking, safety
+# interlocks, and status sensors used by the outside hydroponic dosing system.
+#
+# This package does NOT perform automatic dosing.  All automations remain in
+# the Home Assistant UI to preserve Automation Traces for troubleshooting.
+#
+# ------------------------------------------------------------------------------
+# Automatic Maintenance Dosing
+# ------------------------------------------------------------------------------
+#
+# UI Automation:
+#   Outside TDS Maintenance Auto Dose
+#
+# Purpose:
+#   Maintain minimum nutrient concentration while the outside hydroponic system
+#   is circulating. This is independent of the automatic refill controller.
+#
+# Control Strategy:
+#   • Uses raw calibrated TDS voltage only.
+#   • Does NOT use ppm/EC conversion math for control decisions.
+#   • Calculates a step dose from:
+#
+#         Tank Volume × mL per Gallon
+#
+#   • Doses equal amounts of Nutrient A and Nutrient B.
+#   • Waits 10 minutes for complete circulation.
+#   • Rechecks TDS.
+#   • Repeats until:
+#       - Minimum TDS is restored, OR
+#       - Maximum dose cycles are reached.
+#
+# Operating Range
+# ----------------
+#   Auto Dose Trigger      ≈ 1.80 V (configurable)
+#   Normal Operating Band  1.80–2.00 V
+#   Hard Stop              2.10 V
+#   Sensor Upper Limit     ≈ 2.40 V
+#
+# Safety Interlocks
+# -----------------
+# Auto dosing is inhibited when:
+#
+#   • Auto Dose Enabled = OFF
+#   • Calibration Mode = ON
+#   • Outside System = OFF
+#   • Control Mode ≠ Auto
+#   • Automatic refill/dosing cycle is active
+#   • Fill solenoid is active
+#   • Nutrient Pump A or B is already running
+#   • Mixing is not confirmed
+#   • Tank volume is invalid or below minimum
+#   • Nutrient inventory is below configured threshold
+#   • Nutrient inventory is unknown/unavailable
+#   • Step dose computes to zero
+#   • Hard-stop voltage has been reached
+#
+# Logging
+# -------
+# Every maintenance dose is written by Node-RED to:
+#
+#     maintenance_log
+#
+# including:
+#
+#   • Timestamp
+#   • Tank volume
+#   • Dose A/B
+#   • TDS before
+#   • TDS after
+#   • Operating mode
+#
+# This historical data will eventually be used to improve dosing efficiency.
+#
+# ------------------------------------------------------------------------------
+# Notes
+# ------------------------------------------------------------------------------
+#
+# • Entities/helpers live in YAML for documentation and version control.
+# • Automations remain in the UI for Trace support.
+# • Suggested Dose sensors are informational only.
+# • Capacities come from patio_system_constants.yaml.
+# • Target TDS helpers are defined in patio_system_constants.yaml.
+#
+# Revision History
+# ----------------
+# 2025-08-01  GAL  Initial dosing monitor package.
+# 2025-08-18  GAL  Inventory tracking and suggested dosing.
+# 2026-06-27  GAL  Added automatic maintenance dosing architecture,
+#                  Node-RED maintenance logging, safety interlocks,
+#                  and volume-based step dosing documentation.
+# ==============================================================================
+
+template:
+  - sensor:
+      - name: "Outside Remaining Nutrient A (mL)"
+        unique_id: outside_remaining_nutrient_a_ml
+        unit_of_measurement: "mL"
+        icon: mdi:flask
+        state: >
+          {% set start = states('input_number.last_batch_start_level_a') | float(0) %}
+          {% set used  = states('input_number.outside_total_dose_a_ml') | float(0) %}
+          {{ [start - used, 0] | max | round(1) }}
+
+      - name: "Outside Remaining Nutrient B (mL)"
+        unique_id: outside_remaining_nutrient_b_ml
+        unit_of_measurement: "mL"
+        icon: mdi:flask
+        state: >
+          {% set start = states('input_number.last_batch_start_level_b') | float(0) %}
+          {% set used  = states('input_number.outside_total_dose_b_ml') | float(0) %}
+          {{ [start - used, 0] | max | round(1) }}
+
+      - name: "Outside Remaining Nutrient A (%)"
+        unique_id: outside_remaining_nutrient_a_pct
+        unit_of_measurement: "%"
+        icon: mdi:percent
+        state: >
+          {% set start = states('input_number.last_batch_start_level_a') | float(0) %}
+          {% set rem   = states('sensor.outside_remaining_nutrient_a_ml') | float(0) %}
+          {{ (100 * rem / start) | round(1) if start > 0 else 0 }}
+
+      - name: "Outside Remaining Nutrient B (%)"
+        unique_id: outside_remaining_nutrient_b_pct
+        unit_of_measurement: "%"
+        icon: mdi:percent
+        state: >
+          {% set start = states('input_number.last_batch_start_level_b') | float(0) %}
+          {% set rem   = states('sensor.outside_remaining_nutrient_b_ml') | float(0) %}
+          {{ (100 * rem / start) | round(1) if start > 0 else 0 }}
+
+      # 📊 Suggested Total Dose (based on current EC/TDS gap) — informational only
+      - name: "Suggested Total Dose (mL)"
+        unique_id: suggested_total_dose
+        unit_of_measurement: "mL"
+        icon: mdi:beaker
+        state: >
+          {% set tds_now = states('sensor.hydroponics_patio_esp32_tds_raw') | float(0) %}
+          {% set target  = states('input_number.target_tds') | float(2000) %}
+          {% set gallons = states('sensor.outside_tank_gallons') | float(0) %}
+          {% set factor  = states('input_number.tds_dosing_factor') | float(0.01) %}
+          {% set ml = (target - tds_now) * gallons * factor %}
+          {{ [ml, 0] | max | round(0) | int }}
+
+      # 📦 Suggested Dose A — informational only (half of total)
+      - name: "Suggested Dose A (mL)"
+        unique_id: suggested_dose_a_ml
+        unit_of_measurement: "mL"
+        icon: mdi:alpha-a-circle-outline
+        state: >
+          {% set ml = states('sensor.suggested_total_dose_ml') | float(0) %}
+          {{ (ml / 2) | round(0) | int }}
+
+      # 📦 Suggested Dose B — informational only (half of total)
+      - name: "Suggested Dose B (mL)"
+        unique_id: suggested_dose_b_ml
+        unit_of_measurement: "mL"
+        icon: mdi:alpha-b-circle-outline
+        state: >
+          {% set ml = states('sensor.suggested_total_dose_ml') | float(0) %}
+          {{ (ml / 2) | round(0) | int }}
+
+      # Clean text status (never "Unavailable")
+      # Text summary based on input_number.min_tds / max_tds
+      - name: "TDS Status"
+        unique_id: tds_status
+        icon: mdi:check-circle-outline
+        state: >-
+          {% set s = states('sensor.hydroponics_patio_esp32_tds_raw') %}
+          {% set minv = (states('input_number.min_tds') | float(3)) / 1000 %}
+          {% set maxv = (states('input_number.max_tds') | float(3)) / 1000 %}
+          {% if s in ['unknown','unavailable',''] %}
+            ❓ Unknown
+          {% else %}
+            {% set v = s | float(0) %}
+            {% if v < minv %}
+              ⚠️ Too Low
+            {% elif v > maxv %}
+              ⚠️ Too High
+            {% else %}
+              ✅ OK
+            {% endif %}
+          {% endif %}
+
+      # ─────────────────────────────────────────────────────────
+      # Auto Dose Step Amount
+      # Equal amount used for both A and B during maintenance dosing.
+      # Formula:
+      # current tank gallons × configured mL/gal
+      # ─────────────────────────────────────────────────────────
+      - name: "Outside Auto Dose Step Amount"
+        unique_id: outside_auto_dose_step_amount
+        unit_of_measurement: "mL"
+        icon: mdi:beaker-plus-outline
+        state: >
+          {% set gal = states('sensor.outside_tank_gallons') | float(0) %}
+          {% set mlpg = states('input_number.outside_auto_dose_ml_per_gallon') | float(0) %}
+          {{ (gal * mlpg) | round(1) if gal > 0 else 0 }}
+
+      # ─────────────────────────────────────────────────────────
+      # Auto Dose Status
+      # Human-readable reason/status for dashboard display.
+      # Automation should still use the binary sensors for blocking.
+      # ─────────────────────────────────────────────────────────
+      # ─────────────────────────────────────────────────────────
+      # Auto Dose Status
+      # Human-readable reason/status for dashboard display.
+      #
+      # This sensor does not control dosing directly.
+      # It explains why auto-dosing is allowed, needed, blocked,
+      # or locked out so troubleshooting can be done from the UI.
+      # ─────────────────────────────────────────────────────────
+      # ─────────────────────────────────────────────────────────
+      # Auto Dose Status
+      # Human-readable reason/status for dashboard display.
+      #
+      # This sensor does not control dosing directly.
+      # It explains why auto-dosing is ready, needed, blocked,
+      # or locked out so troubleshooting can be done from the UI.
+      # ─────────────────────────────────────────────────────────
+      - name: "Outside Auto Dose Status"
+        unique_id: outside_auto_dose_status
+        icon: mdi:robot-outline
+        state: >
+          {% set tds = states('sensor.hydroponics_patio_esp32_tds_raw') %}
+          {% set gal = states('sensor.outside_tank_gallons') %}
+          {% set a_ml = states('sensor.outside_remaining_nutrient_a_ml') %}
+          {% set b_ml = states('sensor.outside_remaining_nutrient_b_ml') %}
+          {% set step_ml = states('sensor.outside_auto_dose_step_amount') | float(0) %}
+          {% set low = states('input_number.outside_tds_auto_dose_low_voltage') | float(1.80) %}
+          {% set hard_stop = states('input_number.outside_tds_auto_dose_hard_stop_voltage') | float(2.10) %}
+
+          {% if is_state('input_boolean.outside_tds_auto_dose_enabled', 'off') %}
+            Disabled
+          {% elif is_state('input_boolean.calibration_mode', 'on') %}
+            Calibration Mode
+          {% elif tds in ['unknown', 'unavailable', 'none', ''] %}
+            TDS Unknown
+          {% elif gal in ['unknown', 'unavailable', 'none', ''] %}
+            Tank Unknown
+          {% elif gal | float(0) <= 5 %}
+            Tank Too Low
+          {% elif is_state('binary_sensor.mixing_confirmed', 'off') %}
+            Mixing Not Confirmed
+          {% elif is_state('binary_sensor.outside_nutrient_inventory_low', 'on') %}
+            Inventory Low
+          {% elif a_ml in ['unknown', 'unavailable', 'none', ''] %}
+            Nutrient A Unknown
+          {% elif b_ml in ['unknown', 'unavailable', 'none', ''] %}
+            Nutrient B Unknown
+          {% elif step_ml <= 0 %}
+            Step Dose Not Set
+          {% elif a_ml | float(0) < step_ml %}
+            Not Enough A
+          {% elif b_ml | float(0) < step_ml %}
+            Not Enough B
+          {% elif tds | float(9) >= hard_stop %}
+            Hard Stop
+          {% elif tds | float(0) < low %}
+            Dose Needed
+          {% else %}
+            Ready
+          {% endif %}
+
+  - binary_sensor:
+      # ON if raw < min_tds; otherwise OFF (never 'Unavailable')
+      - name: "⚠️ Low TDS Warning"
+        unique_id: tds_too_low_sensor_warning
+        device_class: problem
+        state: >-
+          {% set s = states('sensor.hydroponics_patio_esp32_tds_raw') %}
+          {% if s in ['unknown','unavailable',''] %}
+            false
+          {% else %}
+            {{ (s | float(3)) < (states('input_number.min_tds') | float(3)) / 1000 }}
+          {% endif %}
+
+      # ON if raw > max_tds; otherwise OFF (never 'Unavailable')
+      - name: "⚠️ High TDS Safety"
+        unique_id: tds_too_high_sensor_safety
+        device_class: problem
+        state: >-
+          {% set s = states('sensor.hydroponics_patio_esp32_tds_raw') %}
+          {% if s in ['unknown','unavailable',''] %}
+            false
+          {% else %}
+            {{ (s | float(3)) > (states('input_number.max_tds') | float(3)) / 1000 }}
+          {% endif %}
+
+      # 🌀 Mixing Confirmed
+      # Indicates that nutrient solution is actively circulating.
+      # Tank volume is checked separately by the auto-dose safety logic,
+      # so this sensor only verifies circulation flow.
+      - name: "Mixing Confirmed"
+        unique_id: mixing_confirmed
+        device_class: running
+        state: >
+          {% set flow_east = states('sensor.hydroponics_patio_esp32_east_channel_flow') | float(0) %}
+          {% set flow_west = states('sensor.hydroponics_patio_esp32_west_channel_flow') | float(0) %}
+          {{ flow_east > 1 and flow_west > 1 }}
+
+      # ─────────────────────────────────────────────────────────
+      # Nutrient Inventory Low
+      # ON means auto-dosing should be blocked.
+      # Uses percent sensors:
+      # - sensor.outside_remaining_nutrient_a_pct
+      # - sensor.outside_remaining_nutrient_b_pct
+      # ─────────────────────────────────────────────────────────
+      - name: "Outside Nutrient Inventory Low"
+        unique_id: outside_nutrient_inventory_low
+        device_class: problem
+        state: >
+          {% set a = states('sensor.outside_remaining_nutrient_a') %}
+          {% set b = states('sensor.outside_remaining_nutrient_b') %}
+          {% set limit = states('input_number.outside_auto_dose_inventory_low_pct') | float(20) %}
+          {% if a in ['unknown', 'unavailable', 'none', ''] or b in ['unknown', 'unavailable', 'none', ''] %}
+            true
+          {% else %}
+            {{ a | float(0) < limit or b | float(0) < limit }}
+          {% endif %}
+
+      # ─────────────────────────────────────────────────────────
+      # Outside Auto Dose Allowed
+      # Master safety gate for maintenance auto-dosing.
+      #
+      # Must be TRUE before automation can dose.
+      #
+      # Blocks dosing when:
+      # - Calibration mode is active
+      # - Outside system is not circulating
+      # - Tank volume is invalid/too low
+      # - Nutrient inventory is low
+      # - Nutrient mL remaining is unknown
+      # - Step dose exceeds remaining A or B
+      # - TDS voltage is already at/above hard stop
+      # ─────────────────────────────────────────────────────────
+      - name: "Outside Auto Dose Allowed"
+        unique_id: outside_auto_dose_allowed
+        icon: mdi:shield-check
+        state: >
+          {% set tds = states('sensor.hydroponics_patio_esp32_tds_raw') %}
+          {% set gal = states('sensor.outside_tank_gallons') %}
+          {% set a_ml = states('sensor.outside_remaining_nutrient_a_ml') %}
+          {% set b_ml = states('sensor.outside_remaining_nutrient_b_ml') %}
+          {% set step_ml = states('sensor.outside_auto_dose_step_amount') | float(0) %}
+          {% set hard_stop = states('input_number.outside_tds_auto_dose_hard_stop_voltage') | float(2.10) %}
+          {% if tds in ['unknown', 'unavailable', 'none', ''] %}
+            false
+          {% elif gal in ['unknown', 'unavailable', 'none', ''] %}
+            false
+          {% elif a_ml in ['unknown', 'unavailable', 'none', ''] or b_ml in ['unknown', 'unavailable', 'none', ''] %}
+            false
+          {% else %}
+            {{
+              is_state('input_boolean.outside_tds_auto_dose_enabled', 'on')
+              and is_state('input_boolean.calibration_mode', 'off')
+              and is_state('binary_sensor.mixing_confirmed', 'on')
+              and is_state('binary_sensor.outside_nutrient_inventory_low', 'off')
+              and gal | float(0) > 5
+              and step_ml > 0
+              and a_ml | float(0) >= step_ml
+              and b_ml | float(0) >= step_ml
+              and tds | float(9) < hard_stop
+            }}
+          {% endif %}
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 🤖 Outside TDS Maintenance Auto-Dose Enable
+# Purpose:
+# - Master operator enable/disable for maintenance auto-dosing.
+# - Automation must be OFF-safe unless this helper is ON.
+# - This does not dose by itself; it only allows the UI automation to run.
+# - Safety checks still block dosing for calibration mode, low inventory,
+#   invalid tank volume, no circulation, or high TDS voltage.
+# ───────────────────────────────────────────────────────────────────────────────
+input_boolean:
+  outside_tds_auto_dose_enabled:
+    name: Outside TDS Auto Dose Enabled
+    icon: mdi:robot-outline
+
+# ───────────────────────────────────────────────────────────────────────────────
+# 📦 Outside Dosing Totals (Helpers)
+# Purpose: cumulative mL since last batch — OUTSIDE scope only.
+# Incremented by UI automations when a valid last_dose value arrives.
+# YAML helpers do not support unique_id (expected).
+# Seeded from reconciliation since 2025-08-06 (FILL + DOSE): 573.36 mL each.
+# ───────────────────────────────────────────────────────────────────────────────
+input_number:
+  # ─────────────────────────────────────────────────────────────
+  # Running totals since last batch (incremented by UI automations)
+  # Seeded from reconciliation since 2025-08-06 (see maintenance log).
+  # <-- 573.36 from your log; remove/change later if desired
+  outside_total_dose_a_ml:
+    name: Outside Total Dose A (mL)
+    unit_of_measurement: "mL"
+    icon: mdi:counter
+    min: 0
+    max: 100000
+    step: 0.1
+    mode: box
+
+  outside_total_dose_b_ml:
+    name: Outside Total Dose B (mL)
+    unit_of_measurement: "mL"
+    icon: mdi:counter
+    min: 0
+    max: 100000
+    step: 0.1
+    mode: box
+  # ─────────────────────────────────────────────────────────────
+  # TDS Maintenance Auto-Dosing Controls
+  # Purpose:
+  # - Maintains minimum TDS during normal circulation.
+  # - Uses raw calibrated TDS voltage, not ppm estimator math.
+  # - Automation/script remains in UI for traces.
+  # - These helpers only define limits and dose sizing.
+  #
+  # Control concept:
+  # - Dose below outside_tds_auto_dose_low_voltage.
+  # - Dose A and B equally.
+  # - Dose amount scales by current tank gallons.
+  # - Wait 15 minutes between checks.
+  # - Never dose at/above outside_tds_auto_dose_hard_stop_voltage.
+  # ─────────────────────────────────────────────────────────────
+
+  outside_tds_auto_dose_low_voltage:
+    name: Outside TDS Auto Dose Low Voltage
+    unit_of_measurement: "V"
+    icon: mdi:flash-alert-outline
+    min: 1.0
+    max: 2.5
+    step: 0.01
+    mode: box
+
+  outside_tds_auto_dose_hard_stop_voltage:
+    name: Outside TDS Auto Dose Hard Stop Voltage
+    unit_of_measurement: "V"
+    icon: mdi:octagon
+    min: 1.0
+    max: 2.5
+    step: 0.01
+    mode: box
+
+  outside_auto_dose_ml_per_gallon:
+    name: Outside Auto Dose mL Per Gallon
+    unit_of_measurement: "mL/gal"
+    icon: mdi:beaker-plus-outline
+    min: 0
+    max: 10
+    step: 0.1
+    mode: box
+
+  outside_auto_dose_inventory_low_pct:
+    name: Outside Auto Dose Inventory Low %
+    unit_of_measurement: "%"
+    icon: mdi:flask-empty-alert-outline
+    min: 0
+    max: 100
+    step: 1
+    mode: box
+
+  outside_auto_dose_max_cycles:
+    name: Outside Auto Dose Max Cycles
+    icon: mdi:counter
+    min: 1
+    max: 10
+    step: 1
+    mode: box
+
+  # ─────────────────────────────────────────────────────────────
+  # TDS Reference Reading Entry
+  # Purpose:
+  # - Manual EC/ppm meter value entered by operator.
+  # - Node-RED captures this with current raw TDS voltage.
+  # - Data is logged to hydro_tds_reference_reading.
+  # - This is a reference log, not a fixed calibration table.
+  # ─────────────────────────────────────────────────────────────
+
+  outside_tds_meter_entry:
+    name: Outside TDS Meter Entry
+    unit_of_measurement: "ppm"
+    icon: mdi:meter-electric-outline
+    min: 0
+    max: 5000
+    step: 10
+    mode: box
+
+# Buttons to reset Total Dosed amount when a full bottle is installed
+input_button:
+  reset_outside_total_dose_a:
+    name: Reset A
+    icon: mdi:restart
+  reset_outside_total_dose_b:
+    name: Reset B
+    icon: mdi:restart
+
+  # ─────────────────────────────────────────────────────────────
+  # TDS Reference Capture
+  # Node-RED listens for this button press and inserts one row into:
+  # hydro_tds_reference_reading
+  # ─────────────────────────────────────────────────────────────
+  capture_outside_tds_reference_reading:
+    name: Capture Outside TDS Reference Reading
+    icon: mdi:content-save-outline
+
+input_select:
+  # ─────────────────────────────────────────────────────────────
+  # TDS Reference Reading Units
+  # Used by Node-RED when logging manual meter readings.
+  # ─────────────────────────────────────────────────────────────
+  outside_tds_meter_units:
+    name: Outside TDS Meter Units
+    options:
+      - EC
+      - ppm
+    initial: EC
+
+input_text:
+  # ─────────────────────────────────────────────────────────────
+  # Optional note stored with manual TDS reference reading.
+  # Examples:
+  # - Fresh batch
+  # - Before dose
+  # - After dose
+  # - Maintenance check
+  # ─────────────────────────────────────────────────────────────
+  outside_tds_reference_note:
+    name: Outside TDS Reference Note
+    icon: mdi:note-text-outline
+    max: 255

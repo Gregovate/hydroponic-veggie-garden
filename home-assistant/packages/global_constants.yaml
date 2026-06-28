@@ -1,0 +1,81 @@
+# config/packages/hydroponics/global_constants.yaml
+# 🌱 Hydroponics Global Constants (Universal Plant Requirements)
+#
+# Defines TDS and dosing values that apply to all hydroponic systems,
+# regardless of physical location or controller. These are biology-based
+# thresholds and conversion factors used in:
+# - Suggested dosing calculations
+# - TDS alert warnings
+# - Target EC maintenance logic
+#
+# Created: 2025-08-04
+# Maintainer: Greg Liebig
+
+input_number:
+  # 🎯 Desired target TDS for healthy plants
+  target_tds:
+    name: "Target TDS"
+    min: 1500
+    max: 2500
+    step: 25
+    unit_of_measurement: "ppm"
+    mode: slider
+    icon: mdi:target
+    initial: 2000
+
+  # ⚠️ Maximum safe TDS (above this may cause nutrient burn)
+  max_tds:
+    name: "Max Safe TDS"
+    min: 2000
+    max: 3000
+    step: 25
+    unit_of_measurement: "ppm"
+    icon: mdi:alert
+    initial: 2300
+
+  # ⚠️ Minimum safe TDS (below this may cause deficiency)
+  min_tds:
+    name: "Min Safe TDS"
+    min: 1200
+    max: 2000
+    step: 25
+    unit_of_measurement: "ppm"
+    icon: mdi:alert
+    initial: 1800
+
+  # 📈 TDS Dosing Conversion Factor (mL / ppm·gallon)
+  tds_dosing_factor:
+    name: "TDS Dosing Factor"
+    min: 0.001
+    max: 0.05
+    step: 0.001
+    unit_of_measurement: "mL/ppm·gal"
+    icon: mdi:flask
+    mode: box
+    initial: 0.01
+
+# For writing to logbook database added 25-08-19
+# Reusable DB write command (no automations or scripts here)
+# config/packages/hydroponics/global_constants.yaml
+# shell_command:
+#   insert_maintenance_row: >-
+#     mysql --silent --raw --skip-column-names
+#     -h {{ states('sensor.mariadb_host')|default('core-mariadb') }}
+#     -P {{ states('sensor.mariadb_port')|default('3306') }}
+#     -u !secret logbook_usr
+#     -p'!secret logbook_pwd'
+#     logbook
+#     -e {{ command | tojson }}
+
+#   #execute_sql: “/usr/bin/mariadb --ssl=0 -h core-mariadb -u homeassistant -phomeassistant -D homeassistant -e \”SELECT * FROM `statistics_runs` LIMIT 10;\” >> /config/sql_debug.log 2>&1”
+
+
+
+# template:
+#   - sensor:
+#       - name: mariadb_host
+#         unique_id: hydroponics_mariadb_host
+#         state: "core-mariadb"   # or "127.0.0.1"
+#       - name: mariadb_port
+#         unique_id: hydroponics_mariadb_port
+#         state: "3306"

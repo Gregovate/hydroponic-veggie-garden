@@ -1,6 +1,8 @@
-# package_hydroponics_patio.yaml
+# /config/packages/hydroponics/patio_controller.yaml
+
 # Author: Greg
 # Last Updated: 2025-07-19
+# Not sure if this is used. Not in package folder 26-06-27
 # Purpose: Track outdoor hydroponics system including tank gallons, calibration, filtering, and refill prediction
 # Adding stats and fill predictions
 # totally reviewed/renamed sensors to new naming convention 25-07-30
@@ -90,8 +92,80 @@ template:
             none
           {% endif %}
 
-sensor:
+      # 🧴 Remaining Nutrient A Added 25-08-02 for Nutrient Tracking
+      - name: "Remaining Nutrient A (mL)"
+        unique_id: remaining_nutrient_a_ml
+        unit_of_measurement: "mL"
+        state_class: measurement
+        icon: mdi:flask-outline
+        state: >
+          {% set cap = states('input_number.nutrient_a_capacity') | float(0) %}
+          {% set used = states('input_number.total_dose_a_ml') | float(0) %}
+          {{ [cap - used, 0] | max | round(1) }}
 
+      # 🧴 Remaining Nutrient B Added 25-08-02 for Nutrient Tracking
+      - name: "Remaining Nutrient B (mL)"
+        unique_id: remaining_nutrient_b_ml
+        unit_of_measurement: "mL"
+        state_class: measurement
+        icon: mdi:flask-outline
+        state: >
+          {% set cap = states('input_number.nutrient_b_capacity') | float(0) %}
+          {% set used = states('input_number.total_dose_b_ml') | float(0) %}
+          {{ [cap - used, 0] | max | round(1) }}
+
+      # Dosing Sensors
+      - name: "Suggested Total Dose (mL)"
+        unique_id: suggested_total_dose
+        unit_of_measurement: "mL"
+        icon: mdi:beaker
+        state: >
+          {% set tds_now = states('sensor.hydroponics_patio_esp32_tds_raw') | float(0) %}
+          {% set target = states('input_number.target_tds_outside') | float(2000) %}
+          {% set gallons = states('sensor.outside_tank_gallons') | float(0) %}
+          {% set factor = 0.01 %}
+          {% set ml = (target - tds_now) * gallons * factor %}
+          {{ [ml, 0] | max | round(1) }}
+
+      - name: "Suggested Dose A (mL)"
+        unique_id: suggested_dose_outside_a
+        unit_of_measurement: "mL"
+        icon: mdi:alpha-a-circle-outline
+        state: >
+          {% set ml = states('sensor.suggested_total_dose') | float(0) %}
+          {{ (ml / 2) | round(1) }}
+
+      - name: "Suggested Dose B (mL)"
+        unique_id: suggested_dose_outside_b
+        unit_of_measurement: "mL"
+        icon: mdi:alpha-b-circle-outline
+        state: >
+          {% set ml = states('sensor.suggested_total_dose') | float(0) %}
+          {{ (ml / 2) | round(1) }}
+
+  - binary_sensor:
+      # 🚨 Alert: Nutrient A Low 25-08-02
+      - name: "Low Nutrient A"
+        unique_id: low_nutrient_a
+        device_class: problem
+        state: >
+          {{ states('sensor.remaining_nutrient_a_ml') | float(0) < 250 }}
+
+      # 🚨 Alert: Nutrient B Low 5-08-02
+      - name: "Low Nutrient B"
+        unique_id: low_nutrient_b
+        device_class: problem
+        state: >
+          {{ states('sensor.remaining_nutrient_b_ml') | float(0) < 250 }}
+
+      - name: "⚠️ TDS Too High (Sensor Safety)"
+        unique_id: tds_too_high
+        device_class: problem
+        state: >
+          {{ states('sensor.hydroponics_patio_esp32_tds_raw') | float(0) > 2300 }}
+
+
+sensor:
   # 📉 Filtered Gallons Sensor (Removes minor jitter)
   - platform: filter
     name: "Outside Filtered Tank Gallons"
@@ -141,6 +215,14 @@ input_datetime:
     has_date: true
     has_time: true
 
+# Time what happened (threshold crossed),
+# when it happened (stored as datetime),
+# and aligns with your intention to delay action for 30 minutes after that point.
+  auto_fill_threshold_crossed_at:
+    name: "Auto Fill Threshold Crossed At"
+    has_date: true
+    has_time: true
+
 # 🕒 Timestamps for Last Dosing Cycle
   last_outside_dose_a:
     name: "Last Outside Dose A"
@@ -164,14 +246,42 @@ input_number:
     unit_of_measurement: "gal"
     mode: slider
 
-  # 💧 Last Fill Gallons Tracker
-  outside_tank_last_fill_gallons:
-    name: "Outside Tank Last Fill Gallons"
-    min: 0
-    max: 30
-    step: 0.1
+  # Threshold minimum gallons to trigger Auto-Fill
+  # System must be in auto mode to trigger. Added: 2025-08-01   
+  auto_fill_threshold_gallons:
+    name: "Auto Fill Threshold"
+    min: 5
+    max: 20
+    step: 0.5
     unit_of_measurement: "gal"
-    mode: box  # Use slider if preferred: mode: slider
+    mode: slider
+
+  tank_full_target:
+    name: Tank Full Target
+    min: 1
+    max: 22
+    step: 0.5
+    unit_of_measurement: "gal"
+    mode: slider
+    icon: mdi:water-plus
+
+  target_tds_outside:
+    name: TDS Target (Outside)
+    min: 1800
+    max: 2200
+    step: 25
+    unit_of_measurement: "ppm"
+    mode: slider
+    icon: mdi:target
+
+  # # 💧 Last Fill Gallons Tracker
+  # outside_tank_last_fill_gallons:
+  #   name: "Outside Tank Last Fill Gallons"
+  #   min: 0
+  #   max: 30
+  #   step: 0.1
+  #   unit_of_measurement: "gal"
+  #   mode: box  # Use slider if preferred: mode: slider
 
   # record last volume dosed for pump A
   manual_dose_outside_a_ml:
@@ -193,3 +303,23 @@ input_number:
     unit_of_measurement: "ml"
     mode: slider
 
+  nutrient_a_capacity:
+    name: Nutrient A Bottle Capacity
+    min: 0
+    max: 5000
+    step: 10
+    unit_of_measurement: "mL"
+
+  nutrient_b_capacity:
+    name: Nutrient B Bottle Capacity
+    min: 0
+    max: 5000
+    step: 10
+    unit_of_measurement: "mL"
+
+# Added 25-08-04 to set a watchdog for autofill 
+input_boolean:
+  allow_auto_fill:
+    name: Allow Auto Fill Trigger
+    initial: off
+    icon: mdi:check-circle-outline

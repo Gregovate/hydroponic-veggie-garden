@@ -1,0 +1,118 @@
+# /config/packages/hydroponics/batch_building.yaml
+# 💧 Hydroponics Dosing Monitor (Cost & History Only)
+# Tracks chemical usage, cost, and last batch details
+# All real-time control and refill logic is moved to patio_controller.yaml
+# Cleaned: 2025-08-04
+
+input_number:
+  # 💲 Cost tracking for usage reporting
+  nutrient_a_cost_per_ml:
+    name: Cost per mL A
+    min: 0
+    max: 1
+    step: 0.001
+    unit_of_measurement: "$"
+    initial: 0.005
+
+  nutrient_b_cost_per_ml:
+    name: Cost per mL B
+    min: 0
+    max: 1
+    step: 0.001
+    unit_of_measurement: "$"
+    initial: 0.005
+
+  # 🫙 Batch metadata for logging only
+  last_batch_start_level_a:
+    name: Container Start Level A (mL)
+    min: 0
+    max: 3785
+    step: 10
+    unit_of_measurement: "mL"
+
+  last_batch_start_level_b:
+    name: Container Start Level B (mL)
+    min: 0
+    max: 3785
+    step: 10
+    unit_of_measurement: "mL"
+
+  last_batch_cost_a:
+    name: Last Batch Cost A ($)
+    min: 0
+    max: 50
+    step: 0.01
+    unit_of_measurement: "$"
+
+  last_batch_cost_b:
+    name: Last Batch Cost B ($)
+    min: 0
+    max: 50
+    step: 0.01
+    unit_of_measurement: "$"
+
+  nutrient_a_capacity:
+    name: Nutrient A Bottle Capacity
+    min: 0
+    max: 5000
+    step: 10
+    unit_of_measurement: "mL"
+
+  nutrient_b_capacity:
+    name: Nutrient B Bottle Capacity
+    min: 0
+    max: 5000
+    step: 10
+    unit_of_measurement: "mL"
+
+template:
+  - sensor:
+      # 💲 Real-time calculated cost of total dosing so far (OUTSIDE totals)
+      - name: "Cost of Nutrient A ($)"
+        unique_id: cost_of_nutrient_a
+        unit_of_measurement: "$"
+        icon: mdi:currency-usd
+        state_class: measurement
+        state: >
+          {% set ml = states('input_number.outside_total_dose_a_ml') | float(0) %}
+          {% set cost = states('input_number.nutrient_a_cost_per_ml') | float(0) %}
+          {{ (ml * cost) | round(2) }}
+
+      - name: "Cost of Nutrient B ($)"
+        unique_id: cost_of_nutrient_b
+        unit_of_measurement: "$"
+        icon: mdi:currency-usd
+        state_class: measurement
+        state: >
+          {% set ml = states('input_number.outside_total_dose_b_ml') | float(0) %}
+          {% set cost = states('input_number.nutrient_b_cost_per_ml') | float(0) %}
+          {{ (ml * cost) | round(2) }}
+
+      # 🧪 Summary of last batch prep — for UI panel display
+      - name: "Batch A Summary"
+        unique_id: batch_a_summary
+        icon: mdi:flask-outline
+        state: >
+          Last mixed {{ states('input_datetime.last_batch_mixed_a') }},
+          cost ${{ states('input_number.last_batch_cost_a') }},
+          start {{ states('input_number.last_batch_start_level_a') }} mL
+
+      - name: "Batch B Summary"
+        unique_id: batch_b_summary
+        icon: mdi:flask-outline
+        state: >
+          Last mixed {{ states('input_datetime.last_batch_mixed_b') }},
+          cost ${{ states('input_number.last_batch_cost_b') }},
+          start {{ states('input_number.last_batch_start_level_b') }} mL
+
+# record date/time a new batch was mixed
+input_datetime:
+  last_batch_mixed_a:
+    name: Last Batch Mixed A
+    has_date: true
+    has_time: true
+
+  last_batch_mixed_b:
+    name: Last Batch Mixed B
+    has_date: true
+    has_time: true

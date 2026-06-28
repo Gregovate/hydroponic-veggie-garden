@@ -8,6 +8,20 @@
 # Converted to ESP32 25-07-26
 # Added Inline comments during debuging
 # Tested and functional 25-07-29
+# Adding Dosing History Sensors for tracking 25-08-01
+# ✅ ID Replacements 25-08-03
+# Old ID	New ID
+# last_pump_a_runtime	pump_a_runtime_sensor
+# last_pump_b_runtime	pump_b_runtime_sensor
+# last_dose_a_ml	dose_a_ml
+# last_dose_b_ml	dose_b_ml
+# override_a_remaining_time	pump_a_runtime
+# override_b_remaining_time	pump_b_runtime
+# dose_timer_a	REMOVE (use runtime accumulation)
+# dose_timer_b	REMOVE (use runtime accumulation)
+# current_dose_ml	dose_a_ml (and dose_b_ml)
+# Fixed ESP-Override Dosing Interval 25-08-04
+# removed hard top-off line 574 25-08-04
 
 esphome:
   name: hydroponics-patio-esp32
@@ -19,53 +33,102 @@ esphome:
       - output.turn_off: gpio_nutrient_pump_a
       - output.turn_off: gpio_nutrient_pump_b
       - output.turn_off: gpio_water_fill_solenoid
+      - lambda: |-
+          id(dose_a_ml_ESP) = 0.0;
+          id(dose_a_ml).publish_state(0.0);
+
+          id(dose_b_ml_ESP) = 0.0;
+          id(dose_b_ml).publish_state(0.0);
 
 esp32:
   board: esp32dev
   framework:
     type: esp-idf
 
-#setup timers for dosing pumps 25-07-08
+# Dosing pump timing and reporting revised block 25-08-03
+# This structure cleanly separates timers from published values.
+# The runtime sensors will be updated only when pump turns off.
+# The dose amount is stored alongside the runtime, making it easy to confirm dose consistency.
+# Home Assistant will have clear state: pump ran for X seconds and dispensed Y mL.
 globals:
-  # Timer needed for accurate dosing pump A 25-07-28
-  - id: dose_timer_a
+  # ⏱ Runtime timer for Pump A (starts on turn_on, stops on turn_off)
+  - id: pump_a_start_millis
     type: uint32_t
     restore_value: no
     initial_value: '0'
 
-  # Timer needed for accurate dosing pump B 25-07-28
-  - id: dose_timer_b
-    type: uint32_t
-    restore_value: no
-    initial_value: '0'
-
-  # Save last fill gallons 25-07-28
-  - id: last_fill_gallons
+  # ⏱ Final runtime for Pump A (in seconds, published to HA)
+  - id: pump_a_runtime_ESP
     type: float
     restore_value: no
     initial_value: '0.0'
 
-  # Capture fill time duration  25-07-29
+  # 🧴 Dose amount for Pump A (in mL, published to HA)
+  - id: dose_a_ml_ESP
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+  # Flag to track if Pump A is currently running (prevents early shutoff) 25-08-03
+  - id: pump_a_running
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Create a dwell timer to ensure Pump B waits 5 sec before starting 25-08-03
+  - id: dwell_timer
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  # Flag to check for pump B to run 25-08-03
+  - id: pump_b_waiting
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Flag to track if Pump B is currently running (prevents early shutoff) 25-08-03
+  - id: pump_b_running
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # ⏱ Runtime timer for Pump B
+  - id: pump_b_start_millis
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  # ⏱ Final runtime for Pump B
+  - id: pump_b_runtime_ESP
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+  # 🧴 Dose amount for Pump B
+  - id: dose_b_ml_ESP
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+  # 💧 Last fill amount in gallons (after manual fill)
+  - id: last_fill_gallons_ESP
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+
+  # ⏱ Fill cycle start timestamp (millis)
   - id: fill_start_time
     type: uint32_t
     restore_value: no
     initial_value: '0'
 
-  # Track fill gallons during manual fill 25-07-29
+  # 🚰 Fill state (0 = IDLE, 1 = RUNNING, 2 = COMPLETE)
   - id: fill_state
     type: int
     restore_value: no
-    initial_value: '0'  # 0 = IDLE, 1 = RUNNING, 2 = COMPLETE
+    initial_value: '0'
 
-  - id: override_a_remaining_time
-    type: float
-    restore_value: no
-    initial_value: '0.0'
-
-  - id: override_b_remaining_time
-    type: float
-    restore_value: no
-    initial_value: '0.0'
 
 # Enable logging
 logger:
@@ -199,7 +262,8 @@ sensor:
       unit_of_measurement: "gal"
       accuracy_decimals: 2
       filters:
-        - lambda: return x / 1690.0;  # 👈 Accurate calibration: 8450 pulses = 5 gallons
+        #- lambda: return x / 1690.0;  # 👈 Accurate calibration: 8450 pulses = 5 gallons
+        - lambda: return x / 1470.0;  # 2026-06-03 recalibration: ESP read 2.0 gal, actual was 2.3 gal 26-06-03
 
   # TDS meter input via ADS1115 A0
   - platform: ads1115
@@ -238,19 +302,19 @@ sensor:
   # Stores the last successful manual fill amount for use in dosing
   - platform: template
     name: "Last Fill Gallons"
-    id: last_fill_sensor
+    id: last_fill_gal
     unit_of_measurement: "gal"
     accuracy_decimals: 2
     update_interval: never  # Only updated when fill completes
     force_update: true
     internal: false
     lambda: |-
-      return id(last_fill_gallons);  // Global variable holding last fill amount
+      return id(last_fill_gallons_ESP);  // Global variable holding last fill amount
 
   # Records the fill time duration
   - platform: template
-    name: "Fill Duration"
-    id: fill_duration_sensor
+    name: "Fill Duration Min"
+    id: fill_duration_min
     unit_of_measurement: "min"
     accuracy_decimals: 2
     update_interval: never
@@ -260,20 +324,53 @@ sensor:
       return NAN;  // Value is pushed via publish_state()
 
 
-  #Throw away sensors for calibration 25-07-28
+  # Revised block 25-08-03
+  # Consistent IDs match global variables: no confusion when tracing values.
+  # You now see what actually ran: dose and duration, both accurate and logged in HA.
+  # force_update: true on the dose sensors ensures HA gets the updated value even if it matches the previous dose.
+  # ⏱ Pump A runtime sensor (published when pump turns OFF)
   - platform: template
-    name: "Last Pump A Runtime"
-    id: last_pump_a_runtime
+    name: "Pump A Runtime"
+    id: pump_a_runtime
     unit_of_measurement: "s"
     accuracy_decimals: 2
     update_interval: never
+    lambda: |-
+      return id(pump_a_runtime_ESP);
 
+  # 🧴 Dose A sensor (published when pump A starts)
   - platform: template
-    name: "Last Pump B Runtime"
-    id: last_pump_b_runtime
+    name: "dose_a_ml"
+    id: dose_a_ml
+    unit_of_measurement: "mL"
+    accuracy_decimals: 2
+    update_interval: never
+    force_update: true
+    lambda: |-
+      return id(dose_a_ml_ESP);
+
+  # ⏱ Pump B runtime sensor (published when pump turns OFF)
+  - platform: template
+    name: "Pump B Runtime"
+    id: pump_b_runtime
     unit_of_measurement: "s"
     accuracy_decimals: 2
     update_interval: never
+    lambda: |-
+      return id(pump_b_runtime_ESP);
+
+  # 🧴 Dose B sensor (published when pump B starts)
+  - platform: template
+    name: "dose_b_ml"
+    id: dose_b_ml
+    unit_of_measurement: "mL"
+    accuracy_decimals: 2
+    update_interval: never
+    force_update: true
+    lambda: |-
+      return id(dose_b_ml_ESP);
+
+
 
 # Added for manual overrides when needed 25-07-28
 text_sensor:
@@ -304,6 +401,12 @@ output:
       mode: OUTPUT
 #    inverted: true  # Active LOW relay
 
+# Old ID	New ID 25-08-03
+# last_pump_a_runtime	pump_a_runtime_sensor
+# last_pump_b_runtime	pump_b_runtime_sensor
+# last_dose_a_ml	dose_a_ml
+# last_dose_b_ml	dose_b_ml
+
 switch:
   - platform: output
     id: nutrient_pump_a
@@ -313,17 +416,21 @@ switch:
     on_turn_on:
       then:
         - lambda: |-
-            id(dose_timer_a) = millis();
-        - logger.log:
-            format: "Calibration timer A started"
-            level: INFO
+            id(pump_a_start_millis) = millis();
+            ESP_LOGI("main", "Pump A started");
+            id(dose_a_ml).publish_state(id(dose_a_ml_ESP));
+        - homeassistant.service:
+            service: input_datetime.set_datetime
+            data:
+              entity_id: input_datetime.last_outside_dose_a
+              datetime: !lambda 'return id(esptime).now().strftime("%Y-%m-%dT%H:%M:%S");'
     on_turn_off:
       then:
         - lambda: |-
-            uint32_t elapsed = millis() - id(dose_timer_a);
-            float seconds = elapsed / 1000.0;
-            id(last_pump_a_runtime).publish_state(seconds);  // Send to HA
-            ESP_LOGI("main", "Pump A ran for %.2f seconds", seconds);
+            float elapsed = (millis() - id(pump_a_start_millis)) / 1000.0f;
+            id(pump_a_runtime).publish_state(elapsed);
+            ESP_LOGI("main", "Pump A ran for %.2f seconds", elapsed);
+
 
   - platform: output
     id: nutrient_pump_b
@@ -333,17 +440,22 @@ switch:
     on_turn_on:
       then:
         - lambda: |-
-            id(dose_timer_b) = millis();
-        - logger.log:
-            format: "Calibration timer B started"
-            level: INFO
+            id(pump_b_start_millis) = millis();
+            ESP_LOGI("main", "Pump B started");
+            id(dose_b_ml).publish_state(id(dose_b_ml_ESP));
+        - homeassistant.service:
+            service: input_datetime.set_datetime
+            data:
+              entity_id: input_datetime.last_outside_dose_b
+              datetime: !lambda 'return id(esptime).now().strftime("%Y-%m-%dT%H:%M:%S");'
     on_turn_off:
       then:
         - lambda: |-
-            uint32_t elapsed = millis() - id(dose_timer_b);
-            float seconds = elapsed / 1000.0;
-            id(last_pump_b_runtime).publish_state(seconds);  // Send to HA
-            ESP_LOGI("main", "Pump B ran for %.2f seconds", seconds);
+            float elapsed = (millis() - id(pump_b_start_millis)) / 1000.0f;
+            id(pump_b_runtime).publish_state(elapsed);
+            ESP_LOGI("main", "Pump B ran for %.2f seconds", elapsed);
+
+
 
   - platform: output
     id: water_fill_solenoid
@@ -367,30 +479,24 @@ switch:
             id: fill_pulses
             value: 0
         - globals.set:
-            id: last_fill_gallons
+            id: last_fill_gallons_ESP
             value: '0.0'
         - sensor.template.publish:
-            id: last_fill_sensor
-            state: !lambda |-
-              return 0.0;
+            id: last_fill_gal
+            state: !lambda 'return 0.0;'
 
     on_turn_off:
       then:
         - lambda: |-
-            id(last_fill_gallons) = id(fill_gallons).state;
+            id(last_fill_gallons_ESP) = id(fill_gallons).state;
         - sensor.template.publish:
-            id: last_fill_sensor
-            state: !lambda |-
-              return id(fill_gallons).state;
+            id: last_fill_gal
+            state: !lambda 'return id(fill_gallons).state;'
         - logger.log:
             format: "Fill complete: %.2f gal"
-            args: [id(last_fill_gallons)]
+            args: [id(last_fill_gallons_ESP)]
             tag: main
             level: INFO
-
-
-
-
 
 
 number:
@@ -398,6 +504,16 @@ number:
   - platform: homeassistant
     id: manual_fill_gallons
     entity_id: input_number.outside_manual_fill_gallons
+
+  # Minimum gallons left to initiate Auto Fill and Dosing 
+  - platform: homeassistant
+    id: auto_fill_threshold
+    entity_id: input_number.auto_fill_threshold_gallons
+
+  # Number when tank is considered Full
+  - platform: homeassistant
+    id: tank_fill_target
+    entity_id: input_number.tank_full_target
 
   # Get ml to dose for override from Home Assistant A
   - platform: homeassistant
@@ -434,69 +550,74 @@ number:
     restore_value: true
     mode: box
 
+# button:
+#   - platform: template
+#     name: "Start Manual Fill"
+#     id: manual_fill_start
+#     on_press:
+#       then:
+#         - logger.log:
+#             format: Turning on fill valve for manual fill
+#             tag: main
+#             level: DEBUG
+#         - switch.turn_on: 
+#             id: water_fill_solenoid
+
+# Changed button function to allow for auto-fill 25-08-02 and removed full tank in line 573 25-08-04
 button:
   - platform: template
     name: "Start Manual Fill"
-    id: manual_fill_start
+    id: start_manual_fill
     on_press:
       then:
-        - logger.log:
-            format: Turning on fill valve for manual fill
-            tag: main
-            level: DEBUG
-        - switch.turn_on: 
-            id: water_fill_solenoid
+        - lambda: |-
+            if (id(hydroponics_control_mode).state == "Auto") {
+              ESP_LOGI("auto_fill", "Auto mode: using pre-set target of %.2f gal", id(manual_fill_gallons).state);
+            }
+
+
+            // Capture start time
+            id(fill_start_time) = millis();
+
+            // Turn on the solenoid
+            id(water_fill_solenoid).turn_on();
+
+            // Mark state as running
+            id(fill_state) = 1;
+
+            ESP_LOGI("manual_fill", "Fill started: target = %.2f gal", id(manual_fill_gallons));
+
 
   # Reusable button that chooses dosing logic based on control mode — updated 25-07-28
-
+  # 🧴 Button to trigger Pump A dosing updated 25-08-03
+  # Calls either ESP override logic or normal dosing logic based on selected mode
+  # Timestamp is now handled by the switch: on_turn_on to ensure accuracy
   - platform: template
     name: Dose Pump A
     id: dose_pump_a_button
     on_press:
-      - homeassistant.service:
-          service: input_datetime.set_datetime
-          data:
-            entity_id: input_datetime.last_outside_dose_a
-          data_template:
-            datetime: !lambda |-
-              char buf[25];
-              time_t now = id(esptime).now().timestamp;
-              strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", localtime(&now));
-              return std::string(buf);
       - lambda: |-
           std::string mode = id(hydroponics_control_mode).state;
           if (mode == "ESP-Override") {
-            id(dose_override_pump_a).execute();
+            id(dose_override_pump_a).execute();  // Manual override logic
           } else {
-            id(dose_pump_a).execute();
-          }  // <-- This was missing
-          ;
+            id(dose_pump_a).execute();           // Normal automatic dosing logic
+          }
 
+  # 🧴 Button to trigger Pump B dosing
+  # Same structure as Pump A — uses selected mode to determine logic path
+  # Timestamps and sensor updates now occur only when switch physically turns on
   - platform: template
     name: Dose Pump B
     id: dose_pump_b_button
     on_press:
-      - homeassistant.service:
-          service: input_datetime.set_datetime
-          data:
-            entity_id: input_datetime.last_outside_dose_b
-          data_template:
-            datetime: !lambda |-
-              char buf[25];
-              time_t now = id(esptime).now().timestamp;
-              strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", localtime(&now));
-              return std::string(buf);
       - lambda: |-
           std::string mode = id(hydroponics_control_mode).state;
           if (mode == "ESP-Override") {
-            id(dose_override_pump_b).execute();
+            id(dose_override_pump_b).execute();  // Manual override logic
           } else {
-            id(dose_pump_b).execute();
-          }  // <-- This was missing too
-          ;
-
-
-
+            id(dose_pump_b).execute();           // Normal automatic dosing logic
+          }
 
 
 
@@ -509,51 +630,86 @@ interval:
   - interval: 1s
     then:
       - lambda: |-
-          uint32_t now = millis();
+          uint32_t now = millis();  // Capture current time in ms
 
-          // ========== FILL TRACKING ==========
+          // ╔═══════════════════════════════╗
+          // ║    FILL TRACKING LOGIC        ║
+          // ╚═══════════════════════════════╝
           if (id(water_fill_solenoid).state) {
-            id(fill_state) = 1; // RUNNING
+            id(fill_state) = 1;  // Mark state as RUNNING
             float duration_min = (now - id(fill_start_time)) / 60000.0;
-            ESP_LOGD("manual_fill", "Fill running: %.2f gal so far, %.2f min", id(fill_gallons).state, duration_min);
-            id(fill_duration_sensor).publish_state(duration_min);
+            id(fill_duration_min).publish_state(duration_min);
+            ESP_LOGD("manual_fill", "Fill running: %.2f gal so far, %.2f min",
+                     id(fill_gallons).state, duration_min);
           }
 
           float current = id(fill_gallons).state;
           float target = id(manual_fill_gallons).state;
 
           if (current >= target && id(water_fill_solenoid).state) {
-            id(last_fill_gallons) = current;
-            id(last_fill_sensor).publish_state(current);
+            id(last_fill_gallons_ESP) = current;
+            id(last_fill_gal).publish_state(current);
 
             float duration_min = (now - id(fill_start_time)) / 60000.0;
-            id(fill_duration_sensor).publish_state(duration_min);
+            id(fill_duration_min).publish_state(duration_min);
 
             id(water_fill_solenoid).turn_off();
-            id(fill_state) = 2; // COMPLETE
-
+            id(fill_state) = 2;  // COMPLETE
             ESP_LOGI("manual_fill", "Fill complete: %.2f gal in %.2f min", current, duration_min);
           }
 
-          // ========== NON-BLOCKING OVERRIDE DOSING ==========
-          if (id(override_a_remaining_time) > 0.0f) {
-            id(override_a_remaining_time) -= 1.0f;
-            ESP_LOGD("main", "Dose A remaining: %.1f sec", id(override_a_remaining_time));
-            if (id(override_a_remaining_time) <= 0.0f) {
+          // ╔════════════════════════════════════════╗
+          // ║    PUMP A RUNTIME TRACKING             ║
+          // ╚════════════════════════════════════════╝
+          if (id(pump_a_running)) {
+            float elapsed = (now - id(pump_a_start_millis)) / 1000.0f;
+            id(pump_a_runtime).publish_state(elapsed);
+            if (elapsed >= id(pump_a_runtime_ESP)) {
               id(nutrient_pump_a).turn_off();
-              ESP_LOGI("main", "Override A complete — pump off");
+              id(pump_a_running) = false;
+              id(dwell_timer) = millis() + 5000;  // ⏱ set future timestamp for dwell
+              id(pump_b_waiting) = true;
+              id(dose_a_ml).publish_state(id(dose_a_ml_ESP));
+              ESP_LOGI("main", "Auto Dosing A complete — pump off, dwell timer started");
             }
           }
 
-          if (id(override_b_remaining_time) > 0.0f) {
-            id(override_b_remaining_time) -= 1.0f;
-            ESP_LOGD("main", "Dose B remaining: %.1f sec", id(override_b_remaining_time));
-            if (id(override_b_remaining_time) <= 0.0f) {
+          // ╔════════════════════════════════════════╗
+          // ║    PUMP B START AFTER DWELL            ║
+          // ╚════════════════════════════════════════╝
+          if (id(pump_b_waiting) && now >= id(dwell_timer)) {
+            id(pump_b_waiting) = false;
+
+            if (id(pump_b_runtime_ESP) > 0.0f) {
+              id(pump_b_start_millis) = now;
+              id(pump_b_runtime).publish_state(0.0f);
+              id(pump_b_running) = true;
+              id(nutrient_pump_b).turn_on();
+              ESP_LOGI("main", "Dwell complete — starting Pump B");
+              return;  // 🛑 Prevent early shutdown during same interval loop
+            } else {
+              ESP_LOGW("main", "Skipping Pump B — runtime is zero.");
+            }
+          }
+
+          // ╔════════════════════════════════════════╗
+          // ║    PUMP B RUNTIME TRACKING             ║
+          // ╚════════════════════════════════════════╝
+          if (id(pump_b_running)) {
+            float elapsed = (now - id(pump_b_start_millis)) / 1000.0f;
+            id(pump_b_runtime).publish_state(elapsed);
+            if (elapsed >= id(pump_b_runtime_ESP)) {
               id(nutrient_pump_b).turn_off();
-              ESP_LOGI("main", "Override B complete — pump off");
+              id(pump_b_running) = false;
+              id(pump_b_runtime_ESP) = 0.0f;
+              id(dose_b_ml).publish_state(id(dose_b_ml_ESP));
+              ESP_LOGI("main", "Auto Dosing B complete — pump off");
             }
           }
 
+      # ╔══════════════════════════════════════╗
+      # ║     POST-FILL LOGIC + AUTO DOSING    ║
+      # ╚══════════════════════════════════════╝
       - if:
           condition:
             lambda: return id(fill_state) == 2;
@@ -574,12 +730,48 @@ interval:
                 data:
                   entity_id: input_number.tank_last_fill_gallons
                 data_template:
-                  value: !lambda 'return id(last_fill_gallons);'
+                  value: !lambda 'return id(last_fill_gallons_ESP);'
 
             - lambda: |-
-                id(last_fill_gallons) = 0.0;
-                id(fill_state) = 0; // IDLE
+                std::string mode = id(hydroponics_control_mode).state;
+                if (mode != "ESP-Override") {
+                  float gal = id(last_fill_gallons_ESP);
+                  float rate_a = id(ml_per_sec_a).state;
+                  float rate_b = id(ml_per_sec_b).state;
 
+                  if (gal > 0.0 && rate_a > 0.01 && rate_b > 0.01) {
+                    float dose_ml = gal * 10.0f;
+
+                    id(dose_a_ml_ESP) = dose_ml;
+                    id(dose_a_ml).publish_state(id(dose_a_ml_ESP));
+
+                    id(dose_b_ml_ESP) = dose_ml;
+                    id(dose_b_ml).publish_state(id(dose_b_ml_ESP));
+
+                    float seconds_a = dose_ml / rate_a;
+                    float seconds_b = dose_ml / rate_b;
+
+                    id(pump_a_runtime_ESP) = seconds_a;
+                    id(pump_a_start_millis) = millis();
+                    id(pump_a_runtime).publish_state(0.0f);
+                    id(pump_a_running) = true;
+                    id(nutrient_pump_a).turn_on();
+
+                    id(pump_b_runtime_ESP) = seconds_b;
+                    id(pump_b_runtime).publish_state(0.0f);
+
+                    ESP_LOGI("main", "Auto Dosing A: %.2f mL over %.2f sec", dose_ml, seconds_a);
+                    ESP_LOGI("main", "Auto Dosing B: %.2f mL over %.2f sec", dose_ml, seconds_b);
+                  } else {
+                    ESP_LOGW("main", "Auto Dosing skipped — invalid flow rates or gallons");
+                  }
+                } else {
+                  ESP_LOGI("main", "ESP-Override active — auto dosing skipped");
+                }
+
+            - lambda: |-
+                id(last_fill_gallons_ESP) = 0.0;
+                id(fill_state) = 0;
 
 # NON-BLOCKING DOSING SCRIPTS
 script:
@@ -601,10 +793,13 @@ script:
           }
 
           float ml = gal * 10.0;
+          id(dose_a_ml_ESP) = ml; 
+          id(dose_a_ml).publish_state(id(dose_a_ml_ESP));
           float seconds = ml / rate;
 
           ESP_LOGI("main", "Dose A: %.2f mL for %.2f gal (%.2f sec)", ml, gal, seconds);
-          id(override_a_remaining_time) = seconds;
+          id(pump_a_runtime_ESP) = seconds;
+          id(pump_a_runtime).publish_state(seconds);
           id(nutrient_pump_a).turn_on();
 
   - id: dose_pump_b
@@ -625,26 +820,33 @@ script:
           }
 
           float ml = gal * 10.0;
+          id(dose_b_ml_ESP) = ml;
+          id(dose_b_ml).publish_state(id(dose_b_ml_ESP));
           float seconds = ml / rate;
 
           ESP_LOGI("main", "Dose B: %.2f mL for %.2f gal (%.2f sec)", ml, gal, seconds);
-          id(override_b_remaining_time) = seconds;
+          id(pump_b_runtime_ESP) = seconds;
+          id(pump_b_runtime).publish_state(seconds);
           id(nutrient_pump_b).turn_on();
-
 
   - id: dose_override_pump_a
     mode: restart
     then:
       - lambda: |-
           float ml = id(manual_dose_a_ml).state;
+          id(dose_a_ml_ESP) = ml; 
+          id(dose_a_ml).publish_state(id(dose_a_ml_ESP));
           float rate = id(ml_per_sec_a).state;
           if (rate <= 0.01) {
             ESP_LOGE("main", "Invalid override rate for Pump A: %.2f", rate);
             return;
           }
           float seconds = ml / rate;
-          id(override_a_remaining_time) = seconds;
+          id(pump_a_runtime_ESP) = seconds;
+          id(pump_a_runtime).publish_state(seconds);
           ESP_LOGI("main", "Start Override A: %.2f mL @ %.2f mL/s = %.2f sec", ml, rate, seconds);
+          id(pump_a_start_millis) = millis();        // <--- Add this 25-08-04 GAL
+          id(pump_a_running) = true;                 // <--- And this 25-08-04 GAL
           id(nutrient_pump_a).turn_on();
 
   - id: dose_override_pump_b
@@ -652,12 +854,17 @@ script:
     then:
       - lambda: |-
           float ml = id(manual_dose_b_ml).state;
+          id(dose_b_ml_ESP) = ml;
+          id(dose_b_ml).publish_state(id(dose_b_ml_ESP));
           float rate = id(ml_per_sec_b).state;
           if (rate <= 0.01) {
             ESP_LOGE("main", "Invalid override rate for Pump B: %.2f", rate);
             return;
           }
           float seconds = ml / rate;
-          id(override_b_remaining_time) = seconds;
+          id(pump_b_runtime_ESP) = seconds;
+          id(pump_b_runtime).publish_state(seconds);
           ESP_LOGI("main", "Start Override B: %.2f mL @ %.2f mL/s = %.2f sec", ml, rate, seconds);
+          id(pump_b_start_millis) = millis();        // <--- Add this 25-08-04 GAL
+          id(pump_b_running) = true;                 // <--- And this 25-08-04 GAL
           id(nutrient_pump_b).turn_on();

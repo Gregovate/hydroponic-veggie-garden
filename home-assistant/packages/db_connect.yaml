@@ -1,0 +1,13 @@
+# db_connect.yaml
+
+sql:
+  - name: test_logbook_connection
+    db_url: mysql+mysqldb://logbook_user:CHANGE_ME@core-mariadb:3306/logbook?charset=utf8mb4
+    query: "SELECT 1 AS value"
+    column: "value"
+    unit_of_measurement: "pass"
+
+template:
+  - sensor:
+      - name: "Hydro Canary"
+        state: "ok"

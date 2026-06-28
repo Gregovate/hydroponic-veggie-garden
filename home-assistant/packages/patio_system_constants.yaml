@@ -1,0 +1,30 @@
+# config\packages\hydroponics\patio_system_constants.yaml
+# 📦 Hydroponics Patio System Constants
+#
+# Location-specific configuration for the patio controller system.
+# Includes physical parameters like container sizes and alert levels
+# that may differ by installation. These values are used for:
+# - Remaining nutrient calculations
+# - Low nutrient warnings
+#
+# Created: 2025-08-04
+# Maintainer: Greg Liebig
+
+input_number:
+
+  nutrient_low_alert_level:
+    name: "Alert if Remaining Nutrient <"
+    min: 0
+    max: 1000
+    step: 50
+    unit_of_measurement: "mL"
+
+
+  target_tds_outside:
+    name: "TDS Target (Outside)"
+    min: 1800
+    max: 2200
+    step: 25
+    unit_of_measurement: "ppm"
+    mode: slider
+    icon: mdi:target
