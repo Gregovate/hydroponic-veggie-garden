@@ -1,0 +1,387 @@
+[
+    {
+        "id": "f53815261b6cbf31",
+        "type": "inject",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get Recent Activity",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 150,
+        "y": 1640,
+        "wires": [
+            [
+                "get_hydro_history_record_offset"
+            ]
+        ]
+    },
+    {
+        "id": "94fcd52572e0a087",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Build Recent Activity SELECT",
+        "func": "const offset = Math.max(0, Number(msg.history_offset) || 0);\nconst limitRaw = Number(msg.history_limit) || 5;\nconst limit = Math.min(50, Math.max(1, limitRaw));\n\nmsg.topic = `\nSELECT *\nFROM v_hydro_recent_activity\nORDER BY activity_time DESC\nLIMIT ${limit}\nOFFSET ${offset};\n`;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 790,
+        "y": 1720,
+        "wires": [
+            [
+                "f5ee07229a11f2f3"
+            ]
+        ]
+    },
+    {
+        "id": "f5ee07229a11f2f3",
+        "type": "mysql",
+        "z": "3ec2ad8e53afdcdc",
+        "mydb": "mysql_logbook_placeholder",
+        "name": "Query Recent Activity",
+        "x": 1100,
+        "y": 1720,
+        "wires": [
+            [
+                "fbc1559bf50e083e"
+            ]
+        ]
+    },
+    {
+        "id": "fbc1559bf50e083e",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Format Recent Activity (Debug)",
+        "func": "const rows = Array.isArray(msg.payload) ? msg.payload : [];\n\nfunction fmtNum(v, decimals) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(decimals) : null;\n}\n\nfunction fmtDate(v) {\n    if (!v) return \"\";\n    const d = new Date(v);\n    if (Number.isNaN(d.getTime())) return String(v);\n    return d.toLocaleString(\"en-US\", {\n        month: \"2-digit\",\n        day: \"2-digit\",\n        hour: \"2-digit\",\n        minute: \"2-digit\",\n        hour12: false\n    });\n}\n\nconst lines = rows.map(r => {\n    const details = [];\n\n    if (fmtNum(r.fill_gallons, 2)) details.push(`Fill: ${fmtNum(r.fill_gallons, 2)} gal`);\n    if (fmtNum(r.dose_a_ml, 0)) details.push(`A: ${fmtNum(r.dose_a_ml, 0)} mL`);\n    if (fmtNum(r.dose_b_ml, 0)) details.push(`B: ${fmtNum(r.dose_b_ml, 0)} mL`);\n    if (fmtNum(r.tds_voltage, 3)) details.push(`TDS: ${fmtNum(r.tds_voltage, 3)} V`);\n    if (fmtNum(r.tank_gallons, 1)) details.push(`Tank: ${fmtNum(r.tank_gallons, 1)} gal`);\n\n    let line = `### #${r.source_id} — ${r.event_type || \"EVENT\"}\\n`;\n    line += `**${fmtDate(r.activity_time)}**`;\n    if (r.source) line += ` · ${r.source}`;\n    line += `\\n\\n`;\n\n    if (details.length) {\n        line += details.join(\" · \") + \"\\n\\n\";\n    }\n\n    if (r.note) {\n        line += `${String(r.note).slice(0, 240)}\\n`;\n    }\n\n    return line;\n});\n\nconst activityText = lines.join(\"\\n---\\n\");\n\nmsg.payload = JSON.stringify({\n    state: \"ok\",\n    activity_text: activityText,\n    updated_at: new Date().toISOString()\n});\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1390,
+        "y": 1720,
+        "wires": [
+            [
+                "af6c5898dee7e49e",
+                "8147a547056e405a"
+            ]
+        ]
+    },
+    {
+        "id": "af6c5898dee7e49e",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Formatted Query Text",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1680,
+        "y": 1660,
+        "wires": []
+    },
+    {
+        "id": "8147a547056e405a",
+        "type": "mqtt out",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Publish Recent Activity",
+        "topic": "hydro/history/recent",
+        "qos": "",
+        "retain": "true",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "595aab1d78b74ffb",
+        "x": 1680,
+        "y": 1720,
+        "wires": []
+    },
+    {
+        "id": "get_hydro_history_record_offset",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get History Record Offset",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "input_number.hydro_history_record_offset",
+        "state_type": "num",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "history_offset",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 430,
+        "y": 1640,
+        "wires": [
+            [
+                "get_hydro_history_records_per_page"
+            ]
+        ]
+    },
+    {
+        "id": "get_hydro_history_records_per_page",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get History Records Per Page",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "input_number.hydro_history_records_per_page",
+        "state_type": "num",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "history_limit",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 490,
+        "y": 1720,
+        "wires": [
+            [
+                "94fcd52572e0a087",
+                "9def0b0926f8c33d"
+            ]
+        ]
+    },
+    {
+        "id": "hydro_history_offset_changed",
+        "type": "server-state-changed",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "History Offset Changed",
+        "server": "28f1afb.2a0725",
+        "version": 6,
+        "outputs": 1,
+        "exposeAsEntityConfig": "",
+        "entities": {
+            "entity": [
+                "input_number.hydro_history_record_offset"
+            ],
+            "substring": [],
+            "regex": []
+        },
+        "outputInitially": false,
+        "stateType": "str",
+        "ifState": "",
+        "ifStateType": "str",
+        "ifStateOperator": "is",
+        "outputOnlyOnStateChange": true,
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "ignorePrevStateNull": true,
+        "ignorePrevStateUnknown": true,
+        "ignorePrevStateUnavailable": true,
+        "ignoreCurrentStateUnknown": false,
+        "ignoreCurrentStateUnavailable": false,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "eventData"
+            }
+        ],
+        "x": 140,
+        "y": 1700,
+        "wires": [
+            [
+                "get_hydro_history_record_offset"
+            ]
+        ]
+    },
+    {
+        "id": "hydro_history_page_size_changed",
+        "type": "server-state-changed",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "History Page Size Changed",
+        "server": "28f1afb.2a0725",
+        "version": 6,
+        "outputs": 1,
+        "exposeAsEntityConfig": "",
+        "entities": {
+            "entity": [
+                "input_number.hydro_history_records_per_page"
+            ],
+            "substring": [],
+            "regex": []
+        },
+        "outputInitially": false,
+        "stateType": "str",
+        "ifState": "",
+        "ifStateType": "str",
+        "ifStateOperator": "is",
+        "outputOnlyOnStateChange": true,
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "ignorePrevStateNull": true,
+        "ignorePrevStateUnknown": true,
+        "ignorePrevStateUnavailable": true,
+        "ignoreCurrentStateUnknown": false,
+        "ignoreCurrentStateUnavailable": false,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "eventData"
+            }
+        ],
+        "x": 140,
+        "y": 1760,
+        "wires": [
+            [
+                "get_hydro_history_record_offset"
+            ]
+        ]
+    },
+    {
+        "id": "9def0b0926f8c33d",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "browser controls",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 780,
+        "y": 1600,
+        "wires": []
+    },
+    {
+        "id": "mysql_logbook_placeholder",
+        "type": "MySQLdatabase",
+        "name": "MariaDB logbook",
+        "host": "core-mariadb",
+        "port": "3306",
+        "db": "logbook",
+        "tz": "",
+        "charset": "UTF8"
+    },
+    {
+        "id": "595aab1d78b74ffb",
+        "type": "mqtt-broker",
+        "name": "Sungunners MQTT Broker",
+        "broker": "192.168.8.20",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "28f1afb.2a0725",
+        "type": "server",
+        "name": "Home Assistant",
+        "version": 6,
+        "addon": true,
+        "rejectUnauthorizedCerts": true,
+        "ha_boolean": [
+            "y",
+            "yes",
+            "true",
+            "on",
+            "home",
+            "open"
+        ],
+        "connectionDelay": true,
+        "cacheJson": true,
+        "heartbeat": false,
+        "heartbeatInterval": 30,
+        "areaSelector": "friendlyName",
+        "deviceSelector": "friendlyName",
+        "entitySelector": "friendlyName",
+        "statusSeparator": "at: ",
+        "statusYear": "hidden",
+        "statusMonth": "short",
+        "statusDay": "numeric",
+        "statusHourCycle": "h23",
+        "statusTimeFormat": "h:m",
+        "enableGlobalContextStore": true
+    },
+    {
+        "id": "97e0aa452d1238c3",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-node-mysql": "3.0.0",
+            "node-red-contrib-home-assistant-websocket": "0.80.3"
+        }
+    }
+]

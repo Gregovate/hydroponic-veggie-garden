@@ -1,0 +1,117 @@
+#==============================================================================
+# Package: db_history_dashboard.yaml
+#
+# Project: Hydroponics Veggie Garden
+# Author: Greg Liebig
+#
+# Purpose:
+#   Provides Home Assistant entities for the Hydro-History dashboard.
+#
+# Responsibilities:
+# • History dashboard display
+# • History browser state
+# • Paging controls
+# • Selected-event helpers
+# • Operator note workflow helpers
+# • MQTT entities used by the History dashboard
+#
+# Does NOT Contain:
+#   • Core database connectivity checks
+#   • MariaDB infrastructure diagnostics
+#   • Node-RED workflow logic
+#   • Direct database writes
+#
+# Data Path:
+#   Home Assistant dashboard
+#     → Node-RED history workflow
+#     → MariaDB logbook database
+#     → Node-RED formatted response
+#     → Home Assistant display entity
+#
+# Primary Database Objects:
+#   • v_hydro_recent_activity
+#   • maintenance_log
+#   • hydro_tds_reference_reading
+#
+# Related Files:
+#   • db_connect.yaml
+#   • node-red/Hydroponics_History_Browser.json
+#   • docs/04-dashboard-history-design.md
+#   • docs/01-database-design.md
+#
+# Revision History
+#
+# 2026-06-29  GAL
+#   Initial Hydro-History dashboard package.
+#   Added MQTT history sensor and browser state helper entities.
+#
+#==============================================================================
+
+#------------------------------------------------------------------------------
+# MQTT Sensors
+#------------------------------------------------------------------------------
+
+mqtt:
+  sensor:
+    - name: "Hydro Recent Activity Text"
+      unique_id: hydro_recent_activity_text
+      state_topic: "hydro/history/recent"
+      value_template: "{{ value_json.state }}"
+      json_attributes_topic: "hydro/history/recent"
+
+#------------------------------------------------------------------------------
+# Browser State
+#------------------------------------------------------------------------------
+
+input_number:
+  # Number of history records skipped before displaying the current page.
+  hydro_history_record_offset:
+    name: Hydro History Record Offset
+    min: 0
+    max: 5000
+    step: 1
+    mode: box
+    icon: mdi:database-search
+
+  # Number of history records displayed on each dashboard page.
+  hydro_history_records_per_page:
+    name: Hydro History Records Per Page
+    min: 1
+    max: 50
+    step: 1
+    initial: 5
+    mode: box
+
+input_text:
+  # Selected maintenance_log record ID.
+  hydro_history_selected_event_id:
+    name: Hydro History Selected Event ID
+    max: 20
+    icon: mdi:identifier
+
+input_boolean:
+  # Automatically refresh history after new database activity.
+  hydro_history_auto_refresh:
+    name: Hydro History Auto Refresh
+    icon: mdi:refresh-auto
+    initial: true
+
+#------------------------------------------------------------------------------
+# Scripts
+#------------------------------------------------------------------------------
+script:
+  # Requests Node-RED to refresh the Hydro-History activity browser.
+  hydro_history_refresh:
+    alias: Hydro History Refresh
+    mode: single
+    sequence:
+      - event: hydro_history_refresh
+#------------------------------------------------------------------------------
+# Template Sensors
+#------------------------------------------------------------------------------
+# Template sensors will be added when selected-event display is implemented.
+
+#------------------------------------------------------------------------------
+# Automations
+#------------------------------------------------------------------------------
+# Automations will be added when auto-refresh behavior is implemented.
