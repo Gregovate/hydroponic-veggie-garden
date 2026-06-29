@@ -53,8 +53,8 @@
         "y": 1060,
         "wires": [
             [
-                "7dce1a043980cb95",
-                "7eabbb3955a2def6"
+                "7eabbb3955a2def6",
+                "get_control_mode_state"
             ]
         ]
     },
@@ -112,8 +112,8 @@
         "y": 1140,
         "wires": [
             [
-                "7dce1a043980cb95",
-                "39fb51d503f3a1fc"
+                "39fb51d503f3a1fc",
+                "get_control_mode_state"
             ]
         ]
     },
@@ -171,8 +171,8 @@
         "y": 1220,
         "wires": [
             [
-                "7dce1a043980cb95",
-                "a112415935625cec"
+                "a112415935625cec",
+                "get_control_mode_state"
             ]
         ]
     },
@@ -181,14 +181,14 @@
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
         "name": "Hydroponics Cycle Manager",
-        "func": "const entity = msg.topic;\nconst state = msg.payload;\n\nlet cycle = flow.get(\"outside_pending_cycle\") || null;\n\nfunction nowIso() {\n    return new Date().toISOString();\n}\n\nfunction newCycle(eventType = \"DOSE\") {\n    return {\n        started_at: nowIso(),\n        mode: \"esp-override\",\n        source: \"outside\",\n        location: \"patio\",\n        device: \"node_red_cycle_manager\",\n        event_type: eventType,\n\n        system_gallons: null,\n        gallons_added: null,\n\n        dose_a_ml: null,\n        dose_b_ml: null,\n\n        tds_before: null,\n        tds_after: null,\n\n        fill_used: false,\n        pump_a_used: false,\n        pump_b_used: false\n    };\n}\n\n// -----------------------------\n// ACTION STARTED\n// -----------------------------\nif (state === \"on\") {\n\n    flow.set(\"outside_cycle_active\", true);\n\n    // Pump A starts a new nutrient dosing cycle.\n    // Water fill also starts a new fill cycle.\n    // Pump B should normally join the active Pump A cycle.\n    if (entity.includes(\"nutrient_pump_a\")) {\n        cycle = newCycle(\"DOSE\");\n        node.warn(\"NEW DOSE CYCLE STARTED\");\n        msg.capture_before = true;\n    } else if (entity.includes(\"water_fill_solenoid\")) {\n        cycle = newCycle(\"FILL\");\n        node.warn(\"NEW FILL CYCLE STARTED\");\n        msg.capture_before = true;\n    } else if (!cycle) {\n        cycle = newCycle(\"DOSE\");\n        node.warn(\"NEW CYCLE STARTED\");\n        msg.capture_before = true;\n    }\n\n    if (entity.includes(\"water_fill_solenoid\")) {\n        cycle.fill_used = true;\n        cycle.event_type = \"FILL\";\n    }\n\n    if (entity.includes(\"nutrient_pump_a\")) {\n        cycle.pump_a_used = true;\n    }\n\n    if (entity.includes(\"nutrient_pump_b\")) {\n        cycle.pump_b_used = true;\n    }\n\n    flow.set(\"outside_pending_cycle\", cycle);\n\n    msg.payload = cycle;\n    return msg;\n}\n\n// -----------------------------\n// ACTION STOPPED\n// -----------------------------\nif (state === \"off\") {\n\n    if (!cycle) {\n        node.warn(\"OFF event with no active cycle\");\n        return null;\n    }\n\n    cycle.last_activity = nowIso();\n\n    if (entity.includes(\"water_fill_solenoid\")) {\n        node.warn(\"Fill completed\");\n        msg.capture_fill_done = true;\n    }\n\n    if (entity.includes(\"nutrient_pump_a\")) {\n        node.warn(\"Pump A completed\");\n        msg.capture_dose_a_done = true;\n    }\n\n    if (entity.includes(\"nutrient_pump_b\")) {\n        node.warn(\"Pump B completed\");\n        msg.capture_dose_b_done = true;\n    }\n\n    flow.set(\"outside_pending_cycle\", cycle);\n\n    msg.payload = cycle;\n    return msg;\n}\n\nreturn null;",
+        "func": "const entity = msg.topic;\nconst state = msg.payload;\n\nlet cycle = flow.get(\"outside_pending_cycle\") || null;\n\nfunction nowIso() {\n    return new Date().toISOString();\n}\n\nfunction normalizeMode(value) {\n    const s = String(value || \"unknown\").trim();\n    if (s === \"Auto\") return \"auto\";\n    if (s === \"Manual\") return \"manual\";\n    if (s === \"ESP-Override\") return \"esp-override\";\n    return s.toLowerCase();\n}\n\nfunction newCycle(eventType) {\n    return {\n        started_at: nowIso(),\n\n        // Must come from HA control mode, not hardcoded.\n        mode: normalizeMode(msg.control_mode),\n\n        source: \"outside\",\n        location: \"patio\",\n        device: \"node_red_cycle_manager\",\n        event_type: eventType,\n\n        system_gallons: null,\n        gallons_added: null,\n\n        dose_a_ml: null,\n        dose_b_ml: null,\n\n        tds_before: null,\n        tds_after: null,\n\n        fill_used: false,\n        pump_a_used: false,\n        pump_b_used: false\n    };\n}\n\n// -----------------------------\n// ACTION STARTED\n// -----------------------------\nif (state === \"on\") {\n\n    flow.set(\"outside_cycle_active\", true);\n\n    if (entity.includes(\"water_fill_solenoid\")) {\n        // Fill starts a fill cycle.\n        cycle = newCycle(\"FILL\");\n        cycle.fill_used = true;\n        msg.capture_before = true;\n        node.warn(\"NEW FILL CYCLE STARTED\");\n    }\n\n    else if (entity.includes(\"nutrient_pump_a\")) {\n        if (!cycle) {\n            // Dose-only cycle.\n            cycle = newCycle(\"DOSE\");\n            msg.capture_before = true;\n            node.warn(\"NEW DOSE CYCLE STARTED\");\n        } else {\n            // Pump A is joining an existing fill cycle.\n            node.warn(\"PUMP A JOINED ACTIVE CYCLE\");\n        }\n\n        cycle.pump_a_used = true;\n    }\n\n    else if (entity.includes(\"nutrient_pump_b\")) {\n        if (!cycle) {\n            cycle = newCycle(\"DOSE\");\n            msg.capture_before = true;\n            node.warn(\"NEW DOSE CYCLE STARTED FROM PUMP B\");\n        } else {\n            node.warn(\"PUMP B JOINED ACTIVE CYCLE\");\n        }\n\n        cycle.pump_b_used = true;\n    }\n\n    // If water was used, final event is FILL even if dosing also happened.\n    if (cycle.fill_used) {\n        cycle.event_type = \"FILL\";\n    }\n\n    flow.set(\"outside_pending_cycle\", cycle);\n    msg.payload = cycle;\n    return msg;\n}\n\n// -----------------------------\n// ACTION STOPPED\n// -----------------------------\nif (state === \"off\") {\n\n    if (!cycle) {\n        node.warn(\"OFF event with no active cycle\");\n        return null;\n    }\n\n    cycle.last_activity = nowIso();\n\n    if (entity.includes(\"water_fill_solenoid\")) {\n        msg.capture_fill_done = true;\n        node.warn(\"Fill completed\");\n    }\n\n    if (entity.includes(\"nutrient_pump_a\")) {\n        msg.capture_dose_a_done = true;\n        node.warn(\"Pump A completed\");\n    }\n\n    if (entity.includes(\"nutrient_pump_b\")) {\n        msg.capture_dose_b_done = true;\n        node.warn(\"Pump B completed\");\n    }\n\n    if (cycle.fill_used) {\n        cycle.event_type = \"FILL\";\n    }\n\n    flow.set(\"outside_pending_cycle\", cycle);\n    msg.payload = cycle;\n    return msg;\n}\n\nreturn null;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 420,
+        "x": 680,
         "y": 1140,
         "wires": [
             [
@@ -214,7 +214,7 @@
         "checkall": "true",
         "repair": false,
         "outputs": 1,
-        "x": 670,
+        "x": 930,
         "y": 1040,
         "wires": [
             [
@@ -246,7 +246,7 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 940,
+        "x": 1200,
         "y": 1040,
         "wires": [
             [
@@ -278,7 +278,7 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 1160,
+        "x": 1420,
         "y": 1040,
         "wires": [
             [
@@ -298,7 +298,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 1420,
+        "x": 1680,
         "y": 1040,
         "wires": [
             [
@@ -319,7 +319,7 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 1720,
+        "x": 1980,
         "y": 1040,
         "wires": []
     },
@@ -338,7 +338,7 @@
         "checkall": "true",
         "repair": false,
         "outputs": 1,
-        "x": 690,
+        "x": 950,
         "y": 1120,
         "wires": [
             [
@@ -361,7 +361,7 @@
         "checkall": "true",
         "repair": false,
         "outputs": 1,
-        "x": 700,
+        "x": 960,
         "y": 1180,
         "wires": [
             [
@@ -384,7 +384,7 @@
         "checkall": "true",
         "repair": false,
         "outputs": 1,
-        "x": 700,
+        "x": 960,
         "y": 1240,
         "wires": [
             [
@@ -404,7 +404,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 1140,
+        "x": 1400,
         "y": 1120,
         "wires": [
             [
@@ -424,7 +424,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 1130,
+        "x": 1390,
         "y": 1180,
         "wires": [
             [
@@ -444,7 +444,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 1130,
+        "x": 1390,
         "y": 1240,
         "wires": [
             [
@@ -476,7 +476,7 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 920,
+        "x": 1180,
         "y": 1120,
         "wires": [
             [
@@ -508,7 +508,7 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 910,
+        "x": 1170,
         "y": 1180,
         "wires": [
             [
@@ -540,7 +540,7 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 910,
+        "x": 1170,
         "y": 1240,
         "wires": [
             [
@@ -561,8 +561,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 2080,
-        "y": 1320,
+        "x": 2620,
+        "y": 1240,
         "wires": []
     },
     {
@@ -577,7 +577,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 1880,
+        "x": 2140,
         "y": 1120,
         "wires": [
             [
@@ -590,14 +590,14 @@
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
         "name": "Build Cycle INSERT SQL",
-        "func": "const e = flow.get(\"outside_pending_cycle\") || {};\n\nfunction txt(v) {\n    if (v === undefined || v === null || v === \"\") return \"NULL\";\n    return \"'\" + String(v).replace(/'/g, \"''\") + \"'\";\n}\n\nfunction num(v) {\n    const n = Number(v);\n    return Number.isFinite(n) ? String(n) : \"NULL\";\n}\n\nfunction fmtNum(v, decimals) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(decimals) : null;\n}\n\nlet parts = [];\n\nif (e.mode) {\n    parts.push(e.mode);\n}\n\nif (e.event_type) {\n    parts.push(e.event_type);\n}\n\nlet details = [];\n\nif (Number(e.gallons_added) > 0) {\n    details.push(`added ${fmtNum(e.gallons_added, 2)} gal water`);\n}\n\nif (Number(e.dose_a_ml) > 0) {\n    details.push(`dose A ${fmtNum(e.dose_a_ml, 0)} mL`);\n}\n\nif (Number(e.dose_b_ml) > 0) {\n    details.push(`dose B ${fmtNum(e.dose_b_ml, 0)} mL`);\n}\n\nif (Number.isFinite(Number(e.system_gallons))) {\n    details.push(`system ${fmtNum(e.system_gallons, 1)} gal`);\n}\n\nif (Number.isFinite(Number(e.tds_before)) && Number.isFinite(Number(e.tds_after))) {\n    details.push(`TDS ${fmtNum(e.tds_before, 3)} → ${fmtNum(e.tds_after, 3)} V`);\n} else if (Number.isFinite(Number(e.tds_before))) {\n    details.push(`TDS before ${fmtNum(e.tds_before, 3)} V`);\n} else if (Number.isFinite(Number(e.tds_after))) {\n    details.push(`TDS after ${fmtNum(e.tds_after, 3)} V`);\n}\n\nconst note = `${parts.join(\" \")}: ${details.join(\"; \")}`;\nmsg.topic = `\nINSERT INTO maintenance_log\n(\n  timestamp_utc,\n  internal_time,\n  source,\n  location,\n  device,\n  event_type,\n  mode,\n  system_gallons,\n  gallons_added,\n  dose_a_ml,\n  dose_b_ml,\n  tds_before,\n  tds_after,\n  note,\n  raw_message\n)\nVALUES\n(\n  UTC_TIMESTAMP(),\n  NOW(),\n  ${txt(e.source)},\n  ${txt(e.location)},\n  ${txt(e.device)},\n  ${txt(e.event_type)},\n  ${txt(e.mode)},\n  ${num(e.system_gallons)},\n  ${num(e.gallons_added)},\n  ${num(e.dose_a_ml)},\n  ${num(e.dose_b_ml)},\n  ${num(e.tds_before)},\n  ${num(e.tds_after)},\n  ${txt(note)},\n  ${txt(JSON.stringify(e))}\n);\n`;\n\nmsg.payload = msg.topic;\nreturn msg;\nreturn msg;",
+        "func": "const e = flow.get(\"outside_pending_cycle\") || {};\n\nfunction txt(v) {\n    if (v === undefined || v === null || v === \"\") return \"NULL\";\n    return \"'\" + String(v).replace(/'/g, \"''\") + \"'\";\n}\n\nfunction num(v) {\n    const n = Number(v);\n    return Number.isFinite(n) ? String(n) : \"NULL\";\n}\n\nfunction fmtNum(v, decimals) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(decimals) : null;\n}\n\nconst mode = e.mode || \"unknown\";\nconst eventType = e.fill_used ? \"FILL\" : \"DOSE\";\n\nlet parts = [];\nparts.push(mode);\nparts.push(eventType);\n\nlet details = [];\n\nif (Number(e.gallons_added) > 0) {\n    details.push(`added ${fmtNum(e.gallons_added, 2)} gal water`);\n}\n\nif (Number(e.dose_a_ml) > 0) {\n    details.push(`dose A ${fmtNum(e.dose_a_ml, 0)} mL`);\n}\n\nif (Number(e.dose_b_ml) > 0) {\n    details.push(`dose B ${fmtNum(e.dose_b_ml, 0)} mL`);\n}\n\nif (Number.isFinite(Number(e.system_gallons))) {\n    details.push(`system ${fmtNum(e.system_gallons, 1)} gal`);\n}\n\nif (Number.isFinite(Number(e.tds_before)) && Number.isFinite(Number(e.tds_after))) {\n    details.push(`TDS ${fmtNum(e.tds_before, 3)} → ${fmtNum(e.tds_after, 3)} V`);\n} else if (Number.isFinite(Number(e.tds_before))) {\n    details.push(`TDS before ${fmtNum(e.tds_before, 3)} V`);\n} else if (Number.isFinite(Number(e.tds_after))) {\n    details.push(`TDS after ${fmtNum(e.tds_after, 3)} V`);\n}\n\nconst note = `${parts.join(\" \")}: ${details.join(\"; \")}`;\n\nconst raw = {\n    ...e,\n    final_mode: mode,\n    final_event_type: eventType\n};\n\nmsg.topic = `\nINSERT INTO maintenance_log\n(\n  timestamp_utc,\n  internal_time,\n  source,\n  location,\n  device,\n  event_type,\n  mode,\n  system_gallons,\n  gallons_added,\n  dose_a_ml,\n  dose_b_ml,\n  tds_before,\n  tds_after,\n  note,\n  raw_message\n)\nVALUES\n(\n  UTC_TIMESTAMP(),\n  NOW(),\n  ${txt(e.source)},\n  ${txt(e.location)},\n  ${txt(e.device)},\n  ${txt(eventType)},\n  ${txt(mode)},\n  ${num(e.system_gallons)},\n  ${num(e.gallons_added)},\n  ${num(e.dose_a_ml)},\n  ${num(e.dose_b_ml)},\n  ${num(e.tds_before)},\n  ${num(e.tds_after)},\n  ${txt(note)},\n  ${txt(JSON.stringify(raw))}\n);\n`;\n\nmsg.payload = msg.topic;\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 2110,
+        "x": 2370,
         "y": 1120,
         "wires": [
             [
@@ -611,7 +611,7 @@
         "z": "3ec2ad8e53afdcdc",
         "mydb": "mysql_logbook_placeholder",
         "name": "Insert Fill Event",
-        "x": 1420,
+        "x": 1680,
         "y": 1240,
         "wires": [
             [
@@ -631,7 +631,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 2120,
+        "x": 2380,
         "y": 1240,
         "wires": [
             [
@@ -663,7 +663,7 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 1630,
+        "x": 1890,
         "y": 1120,
         "wires": [
             [
@@ -688,7 +688,7 @@
         "bytopic": "all",
         "topic": "topic",
         "outputs": 1,
-        "x": 1390,
+        "x": 1650,
         "y": 1120,
         "wires": [
             [
@@ -701,14 +701,14 @@
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
         "name": "Build Notification Text",
-        "func": "const e = flow.get(\"outside_pending_cycle\") || {};\n\nfunction fmt(v, d = 2) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(d) : \"n/a\";\n}\n\nlet lines = [];\n\nlines.push(`${e.mode} ${e.event_type} completed`);\n\nif (e.gallons_added > 0) {\n    lines.push(`Water Added: ${fmt(e.gallons_added)} gal`);\n}\n\nif (e.dose_a_ml > 0) {\n    lines.push(`Dose A: ${fmt(e.dose_a_ml, 0)} mL`);\n}\n\nif (e.dose_b_ml > 0) {\n    lines.push(`Dose B: ${fmt(e.dose_b_ml, 0)} mL`);\n}\n\nlines.push(`System Volume: ${fmt(e.system_gallons, 1)} gal`);\n\nif (e.tds_before || e.tds_after) {\n    lines.push(`TDS: ${fmt(e.tds_before, 3)} → ${fmt(e.tds_after, 3)}`);\n}\n\nmsg.payload = lines.join(\"\\n\");\n\nreturn msg;\nreturn msg;",
+        "func": "const e = flow.get(\"outside_pending_cycle\") || {};\n\nfunction fmt(v, d = 2) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(d) : \"n/a\";\n}\n\nconst mode = e.mode || \"unknown\";\nconst eventType = e.fill_used ? \"FILL\" : \"DOSE\";\n\nlet lines = [];\n\nlines.push(`${mode} ${eventType} completed`);\n\nif (e.gallons_added > 0) {\n    lines.push(`Water Added: ${fmt(e.gallons_added)} gal`);\n}\n\nif (e.dose_a_ml > 0) {\n    lines.push(`Dose A: ${fmt(e.dose_a_ml, 0)} mL`);\n}\n\nif (e.dose_b_ml > 0) {\n    lines.push(`Dose B: ${fmt(e.dose_b_ml, 0)} mL`);\n}\n\nlines.push(`System Volume: ${fmt(e.system_gallons, 1)} gal`);\n\nif (e.tds_before || e.tds_after) {\n    lines.push(`TDS: ${fmt(e.tds_before, 3)} → ${fmt(e.tds_after, 3)}`);\n}\n\nmsg.payload = lines.join(\"\\n\");\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 1640,
+        "x": 1900,
         "y": 1240,
         "wires": [
             [
@@ -729,8 +729,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 400,
-        "y": 980,
+        "x": 420,
+        "y": 1000,
         "wires": []
     },
     {
@@ -746,8 +746,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 440,
-        "y": 1040,
+        "x": 420,
+        "y": 1060,
         "wires": []
     },
     {
@@ -763,8 +763,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 400,
-        "y": 1280,
+        "x": 440,
+        "y": 1200,
         "wires": []
     },
     {
@@ -790,11 +790,43 @@
         "blockInputOverrides": true,
         "domain": "persistent_notification",
         "service": "create",
-        "x": 1870,
+        "x": 2130,
         "y": 1240,
         "wires": [
             [
                 "87af5340f680e239"
+            ]
+        ]
+    },
+    {
+        "id": "get_control_mode_state",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get Control Mode",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "input_select.hydroponics_outside_control_mode",
+        "state_type": "str",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "control_mode",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 410,
+        "y": 1140,
+        "wires": [
+            [
+                "7dce1a043980cb95"
             ]
         ]
     },
@@ -839,7 +871,7 @@
         "charset": "UTF8"
     },
     {
-        "id": "d78a61f5bed98dfc",
+        "id": "1314a8ffab27a12a",
         "type": "global-config",
         "env": [],
         "modules": {

@@ -1,6 +1,6 @@
 # Dashboard and History Design
 
-**Revision:** 0.1
+**Revision:** 0.2
 **Last Updated:** 2026-06-28
 **Status:** Active Design
 
@@ -10,20 +10,20 @@
 
 The Home Assistant dashboard is intended to be the primary operator interface for the hydroponic vegetable garden.
 
-Its purpose is not to expose database tables or engineering data. Instead, it should provide simple workflows for operating, monitoring, and maintaining the hydroponic system.
+Its purpose is to provide simple, task-oriented workflows for operating, monitoring, and maintaining the hydroponic system.
 
-Whenever possible, routine operation should be possible without opening Node-RED, DBeaver, or MariaDB.
+Routine operation should not require opening Node-RED, DBeaver, or MariaDB. Those tools are intended for development, engineering, and troubleshooting.
 
 ---
 
-## Development Status
+# Development Status
 
 | Component                 | Status       | First Working | Last Updated |
 | ------------------------- | ------------ | ------------- | ------------ |
 | Current Status Dashboard  | 🚧 Partial   | 2026-06-26    | 2026-06-28   |
 | Controller Mode Selection | ✅ Production | 2026-06-26    | 2026-06-28   |
 | EC Reference Measurement  | ✅ Production | 2026-06-28    | 2026-06-28   |
-| History Dashboard         | ⏳ Planned    | —             | 2026-06-28   |
+Recent Activity Dashboard | 🚧 In Development | 2026-06-28 | 2026-06-29   |
 | Event Annotation          | ⏳ Planned    | —             | 2026-06-28   |
 | Inventory Dashboard       | ⏳ Planned    | —             | 2026-06-28   |
 | Batch Building Workflow   | ⏳ Planned    | —             | 2026-06-28   |
@@ -33,7 +33,7 @@ Whenever possible, routine operation should be possible without opening Node-RED
 
 # Dashboard Philosophy
 
-The dashboard should answer three questions.
+Every dashboard should answer three questions.
 
 ## 1. What is happening now?
 
@@ -54,39 +54,39 @@ Examples:
 
 ## 2. What just happened?
 
-Recent history.
+Recent operational history.
 
 Examples:
 
 * Last fill
 * Last nutrient dose
 * Last EC reference check
-* Last manual event
-* Last alert
+* Last equipment event
+* Last manual operation
 
-The operator should not need DBeaver to answer these questions.
+The operator should never need DBeaver simply to determine recent system activity.
 
 ---
 
 ## 3. What needs attention?
+
+The dashboard should highlight exceptions rather than overwhelming the operator with raw data.
 
 Examples:
 
 * Low inventory
 * Batch nearly empty
 * Flow alarm
-* Failed sensor
+* Sensor failure
 * Equipment issue
 * EC drift
-* Upcoming batch requirement
-
-The dashboard should focus attention on exceptions instead of raw data.
+* Upcoming nutrient batch requirement
 
 ---
 
 # Dashboard Sections
 
-The dashboard is expected to grow into several functional areas.
+The dashboard is expected to evolve into several functional areas.
 
 ## System Status
 
@@ -96,7 +96,7 @@ Examples:
 
 * Tank level
 * Estimated gallons
-* EC estimate
+* Estimated EC
 * Water temperature
 * Flow rates
 * Controller mode
@@ -106,7 +106,7 @@ Examples:
 
 ## Recent Activity
 
-Displays the most recent operational events.
+Displays the most recent operational history.
 
 Examples:
 
@@ -114,47 +114,125 @@ Examples:
 * Dose
 * Mode change
 * EC reference measurement
-* Manual note
 * Equipment event
+* Manual note
 
-Initial display should show approximately the five most recent events.
+Initial implementation consists of a dedicated Hydro-History dashboard.
 
-Future versions should allow paging through older history.
+The History dashboard will be driven by Node-RED, which queries
+`v_hydro_recent_activity`, formats the results, and provides them to
+Home Assistant for display.
+
+Planned capabilities include:
+
+• Browse newest to oldest events
+• Page forward/back through history
+• Select an individual event
+• Display complete event details
+• Launch operator workflows from the selected event
 
 ---
 
 ## Event Details
 
-Selecting an event should display all recorded information.
+Selecting an event should display all recorded information associated with that event.
 
 Examples:
 
-* Time
+* Date and time
 * Event type
 * Tank gallons
 * Fill amount
-* Dose amount
+* Nutrient dose
 * Probe voltage
 * Estimated EC
 * Water temperature
-* Flow rates
+* Flow readings
 * Notes
 
 This allows investigation without manually querying the database.
+
+# History Browser Roadmap
+
+The Hydro-History dashboard is being implemented in stages.
+
+## Phase 1 — Database Connectivity
+
+- Verify Home Assistant connectivity to MariaDB.
+- Verify `v_hydro_recent_activity` can be queried.
+- Verify Node-RED can retrieve and format recent activity.
+
+Status: ✅ Complete
+
+---
+
+## Phase 2 — History Browser
+
+- Display recent activity in Home Assistant.
+- Browse newer and older history.
+- Select an event.
+- Display complete event details.
+
+Status: 🚧 In Progress
+
+---
+
+## Phase 3 — Operator Workflows
+
+Selected events may initiate workflows such as:
+
+- Add operator note
+- Record equipment issue
+- Record maintenance performed
+- Record repair completed
+- Create standalone operational note
+
+Status: ⏳ Planned
+
+---
+
+# Operator Workflows
+
+The dashboard should guide the operator through common hydroponic tasks.
+
+Implementation details are documented separately in:
+
+* `node-red/README.md`
+* `home-assistant/packages/README.md`
+* `docs/01-database-design.md`
+
+## Current Production Workflows
+
+| Workflow                      | Status       | Purpose                                                                                     |
+| ----------------------------- | ------------ | ------------------------------------------------------------------------------------------- |
+| Measure EC                    | ✅ Production | Records a handheld EC/TDS reference measurement for comparison with the installed probe.    |
+| Automatic Fill / Dose Logging | ✅ Production | Automatically records completed fill and nutrient dosing cycles in the maintenance history. |
+
+## Planned Workflows
+
+| Workflow             | Purpose                                                       |
+| -------------------- | ------------------------------------------------------------- |
+| Equipment Event      | Record maintenance, repairs, leaks, and equipment failures.   |
+| Record Purchase      | Record nutrient purchases and automatically update inventory. |
+| Build Nutrient Batch | Create stock solution batches and update inventory.           |
+| Harvest Entry        | Record harvested produce by season and planting position.     |
+| Waste Entry          | Record crop losses and discarded produce.                     |
+| History Browser       | Browse and investigate historical operational events.             |
+| Operator Notes        | Attach additional context or create standalone operational notes. |
 
 ---
 
 # Event Annotation
 
-Operational events record what occurred.
+Operational events record **what** happened.
 
-However, they do not always explain why something happened.
+They do not always explain **why** it happened.
 
 Example:
 
-Two fill events occurring within a few minutes of each other may indicate a problem.
+Two fill events occurring within a few minutes of each other may indicate an equipment problem.
 
-The dashboard should allow an operator to attach additional information after the event has occurred.
+The dashboard should allow additional information to be attached after the event has occurred.
 
 Examples:
 
@@ -165,9 +243,7 @@ Examples:
 * Incorrect manual dose
 * Equipment replaced
 
-These annotations provide context that may not have been available when the original event was recorded.
-
-Annotations should never overwrite the original event record.
+Annotations should never overwrite the original event.
 
 Instead, they become additional historical information linked to that event.
 
@@ -178,144 +254,77 @@ Instead, they become additional historical information linked to that event.
 Observed history:
 
 ```text
-08:10 Fill
-08:14 Fill
+08:10  Fill
+08:14  Fill
 ```
 
 The operator recognizes that two fills should never occur within such a short period.
 
-Selecting either event should allow additional context to be recorded.
+Selecting either event allows additional context to be recorded.
 
-Example annotation:
+Example:
 
 ```text
 Equipment Failure
 
 The circulating pump hose clamp failed.
 
-The system correctly performed two fill-and-dose operations; however, due to the failed circulating pump hose clamp, the water and nutrients were pumped onto the ground instead of remaining in circulation.
+The system correctly performed two fill-and-dose operations; however, the failed hose clamp allowed the water and nutrients to be pumped onto the ground instead of remaining in circulation.
 
-The reservoir did not retain the intended water or nutrients, resulting in the loss of both fill-and-dose cycles.
+Both fill-and-dose cycles were therefore lost.
 
-The hose clamp was replaced and the system returned to normal operation.
+The hose clamp was replaced and normal operation resumed.
 ```
 
 This preserves both:
 
-* the original measurements
-* the explanation discovered later
+* The original measurements
+* The explanation discovered during troubleshooting
 
----
+# Field Notes
 
-# Operator Workflows
+Not all operator notes are tied to a specific event.
 
-The dashboard should eventually provide simple workflows for common operations.
-
-## Measure EC
-
-Current status:
-
-✅ Implemented
-
-Workflow:
-
-Measure EC
-
-↓
-
-Enter handheld meter reading
-
-↓
-
-Save reference
-
----
-
-## Log Equipment Event
-
-Future workflow.
+Some notes document general field observations, maintenance actions, crop conditions, or system changes that are useful to the season history.
 
 Examples:
 
-* Leak
-* Broken hose
-* Failed pump
-* Sensor replacement
-* Repair
+* Added another layer of support netting
+* Plants outgrew first trellis layer
+* Cleaned sensor probes
+* Replaced pump tubing
+* Adjusted plant spacing
+* Observed pest pressure
+* Noted heat stress
+* Repaired leak before next cycle
 
----
+Field notes should be recorded as their own `NOTE` events in `maintenance_log`.
 
-## Record Purchase
+Unlike event annotations, field notes do not need to reference an existing fill, dose, harvest, or purchase event.
 
-Future workflow.
+This allows the history dashboard to show both:
 
-Examples:
+* automated system events
+* operator-entered observations
 
-* MasterBlend
-* Calcium nitrate
-* Magnesium sulfate
-
-The workflow should update inventory without requiring SQL.
-
----
-
-## Build Nutrient Batch
-
-Future workflow.
-
-Examples:
-
-* Select recipe
-* Verify inventory
-* Record batch
-* Update stock solution inventory
-
----
-
-## Record Harvest
-
-Future workflow.
-
-Examples:
-
-* Select season
-* Select planting position
-* Enter quantity
-* Enter total weight
-* Save harvest
-
----
-
-## Record Waste
-
-Future workflow.
-
-Examples:
-
-* Plant loss
-* Fruit loss
-* Disease
-* Pest damage
-* Mechanical damage
+Together, they provide a more complete operating history than automation alone.
 
 ---
 
 # Design Goals
 
-The dashboard should make routine operation simple.
-
-The operator should be able to answer questions such as:
+The dashboard should allow the operator to answer questions such as:
 
 * What happened today?
 * Why did the system fill?
 * Why did it dose?
-* When was the last EC check?
+* When was the last EC reference check?
 * Is inventory running low?
 * What equipment problems have occurred?
 * Which nutrient batch is currently in use?
-* What plants are producing the most?
+* Which crops are producing the most?
 
-without using DBeaver or writing SQL.
+without writing SQL or opening database tools.
 
 ---
 
@@ -323,14 +332,16 @@ without using DBeaver or writing SQL.
 
 The dashboard should evolve from a collection of sensor cards into a complete hydroponic management interface.
 
-Eventually, nearly every interaction with the hydroponic system should occur through Home Assistant, with Node-RED performing workflow automation and MariaDB maintaining the permanent historical record.
+Nearly every routine interaction with the hydroponic system should eventually occur through Home Assistant.
 
-The operator should rarely need direct access to the database except for engineering or troubleshooting purposes.
+ESPHome will continue to provide real-time controller logic, Node-RED will execute workflow automation, and MariaDB will maintain the permanent historical record.
+
+Direct database access should rarely be necessary outside of engineering, development, or troubleshooting.
 
 ---
 
 # Revision History
 
-| Date       | Revision | Description                                                                                                                               |
-| ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-06-28 | 0.1      | Initial dashboard and history design document. Defines dashboard philosophy, history review, operator workflows, and long-term direction. |
+| Date       | Revision | Description                                                                                                                                                                                                  |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-06-28 | 0.2      | Reorganized document around dashboard functionality, operator workflows, event history, and long-term design. Removed implementation details that are documented in the Node-RED and Home Assistant READMEs. |

@@ -1,11 +1,63 @@
-# db_connect.yaml
+#==============================================================================
+# Package: db_connect.yaml
+#
+# Project: Hydroponics Veggie Garden
+# Author: Greg Liebig
+#
+# Purpose:
+#   Provides Home Assistant connectivity verification for the production
+#   MariaDB logbook database.
+#
+# Responsibilities:
+#   • Verify MariaDB connectivity
+#   • Verify SQL integration is operational
+#   • Provide simple diagnostic sensors used during system startup
+#
+# Does NOT Contain:
+#   • Dashboard entities
+#   • History browser
+#   • Inventory queries
+#   • Harvest queries
+#   • Workflow helpers
+#
+# Those belong in feature-specific database packages.
+#
+# Database:
+#   logbook
+#
+# Related Packages:
+#   db_history_dashboard.yaml
+#   batch_building.yaml
+#   harvest_inputs.yaml
+#
+# Revision History
+#
+# 2026-06-28  GAL
+#   Initial package.
+#   Added MariaDB connectivity verification.
+#
+# 2026-06-29  GAL
+#   Added production connectivity verification using
+#   v_hydro_recent_activity.
+
+#   History Dashboard package planned but not yet implemented.
+#
+#==============================================================================
 
 sql:
   - name: test_logbook_connection
-    db_url: mysql+mysqldb://logbook_user:CHANGE_ME@core-mariadb:3306/logbook?charset=utf8mb4
+    db_url: !secret logbookdb_url
     query: "SELECT 1 AS value"
     column: "value"
     unit_of_measurement: "pass"
+
+  - name: hydro_recent_activity_count
+    db_url: !secret logbookdb_url
+    query: >
+      SELECT COUNT(*) AS activity_count
+      FROM v_hydro_recent_activity
+    column: activity_count
+
 
 template:
   - sensor:

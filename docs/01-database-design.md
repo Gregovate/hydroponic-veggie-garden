@@ -1,645 +1,758 @@
 # Hydroponics Database Design
 
-**Revision:** 0.1
+**Revision:** 0.2
 **Last Updated:** 2026-06-28
-**Status:** Active Design / Partial Implementation
+**Status:** Active Reference / Partial Implementation
 
 ---
 
 # Purpose
 
-The Hydroponics database is intended to become the permanent record for the outdoor hydroponic vegetable system.
+The Hydroponics database is the permanent record for the outdoor hydroponic vegetable system.
 
-The database should eventually support:
+This document identifies:
 
-* System event history
-* Fill and dosing history
-* EC/TDS reference checks
-* Nutrient stock solution inventory
-* Dry ingredient inventory
-* Batch building
-* Seasonal crop layouts
-* Planting positions
-* Harvest tracking
-* Waste tracking
-* Cost analysis
-* Long-term production analysis
+* What database objects currently exist
+* What each object is used for
+* What fields are available
+* What writes data to each table
+* What reads data from each table
+* Which objects are production, partial, planned, or legacy
 
-At the time of this revision, the database contains several useful tables, but the system is not yet fully integrated. Some tables are active and working, while others exist but do not yet have reliable Home Assistant or Node-RED workflows for entering and reviewing data.
+This document is the database reference.
 
-The goal of this document is to describe what exists, what works, what does not work yet, and what direction the database should move toward.
+Workflow implementation details belong in:
+
+* `node-red/README.md`
+* `home-assistant/packages/README.md`
+* `docs/04-dashboard-history-design.md`
 
 ---
 
-## Development Status
+# Status Definitions
 
-| Component                 | Status             | First Working | Last Updated |
-| ------------------------- | ------------------ | ------------- | ------------ |
-| Controller Event Logging  | ✅ Production       | 2026-06-26    | 2026-06-28   |
-| EC Reference Measurements | ✅ Production       | 2026-06-28    | 2026-06-28   |
-| Dry Ingredient Purchases  | 🧱 Database Only   | —             | 2026-06-28   |
-| Batch Building            | 🟨 Manual Workflow | —             | 2026-06-28   |
-| Inventory Management      | 🚧 Partial         | —             | 2026-06-28   |
-| History Dashboard         | ⏳ Planned          | —             | 2026-06-28   |
-| Season Management         | ⏳ Planned          | —             | 2026-06-28   |
-| Harvest Tracking          | ⏳ Planned          | —             | 2026-06-28   |
-| Waste Tracking            | ⏳ Planned          | —             | 2026-06-28   |
-| Production Analytics      | ⏳ Planned          | —             | 2026-06-28   |
-
-### Status Definitions
-
-| Status                 | Description                                                                                                            |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| ✅ **Production**       | Fully implemented, tested, and used during normal operation.                                                           |
-| 🚧 **Partial**         | Operational, but incomplete or requiring some manual intervention.                                                     |
-| 🟨 **Manual Workflow** | Workflow is defined and usable, but still depends on manual operator steps.                                            |
-| 🧱 **Database Only**   | Database schema exists, but no finished Home Assistant or Node-RED workflow exists for entering or reviewing the data. |
-| ⏳ **Planned**          | Feature has been designed but has not yet been implemented.                                                            |
-| ❌ **Retired**          | Legacy feature retained for historical reference only and should not be used for future development.                   |
+| Status           | Meaning                                                                |
+| ---------------- | ---------------------------------------------------------------------- |
+| ✅ Production     | Used during normal operation.                                          |
+| 🚧 Partial       | Object exists and may contain useful data, but workflow is incomplete. |
+| 🧱 Database Only | Schema exists, but no finished operator workflow exists.               |
+| ⏳ Planned        | Designed for a future workflow.                                        |
+| ❌ Legacy         | Retained only for historical reference or migration review.            |
 
 ---
 
-# Current Working Features
+# Current Production Workflows
 
-Only two database workflows are currently considered working.
-
-## 1. System Mode / Controller Events
-
-The system can log operational events related to the patio hydroponics controller.
-
-These events are stored in:
-
-```sql
-hydroponics_outside_events
-```
-
-This table is intended to become the active system event log for the outside hydroponics system.
-
-It currently supports fields for:
-
-* Event time
-* System name
-* Event type
-* Notes
-* Tank gallons
-* Fill gallons
-* EC before / after
-* TDS voltage
-* Dose A / B amounts
-* Pump runtimes
-* East and West flow rates
-* HX711 raw value
-* Event source
-
-This table is the best current candidate for long-term system event logging.
+| Workflow                       | Status       | Writes To                     | Started From                                     |
+| ------------------------------ | ------------ | ----------------------------- | ------------------------------------------------ |
+| Fill / Dose Cycle Logging      | ✅ Production | `maintenance_log`             | ESPHome switch activity through Node-RED         |
+| EC / TDS Reference Measurement | ✅ Production | `hydro_tds_reference_reading` | Home Assistant Measure EC popup through Node-RED |
 
 ---
 
-## 2. EC/TDS Reference Measurements
+# Current Object Inventory
 
-The system can record manual handheld meter checks against the installed probe voltage.
+## Base Tables
 
-These readings are stored in:
+| Table                         | Status       | Purpose                                                           |
+| ----------------------------- | ------------ | ----------------------------------------------------------------- |
+| `maintenance_log`             | ✅ Production | Primary operational event history for fill and dose cycles.       |
+| `hydro_tds_reference_reading` | ✅ Production | Handheld EC/TDS meter checks compared to installed probe voltage. |
+| `ingredients`                 | 🚧 Partial   | Master list of dry nutrient ingredients.                          |
+| `purchases`                   | 🚧 Partial   | Purchase header records.                                          |
+| `purchase_items`              | 🚧 Partial   | Purchased ingredient line items.                                  |
+| `inventory_ledger`            | 🚧 Partial   | Inventory movement history.                                       |
+| `nutrient_batches`            | 🚧 Partial   | Nutrient stock batch headers.                                     |
+| `nutrient_batch_items`        | 🚧 Partial   | Ingredients used in each nutrient batch.                          |
+| `nutrient_stock_solution`     | 🚧 Partial   | Part A / Part B stock solution containers.                        |
+| `hydro_season`                | ⏳ Planned    | Growing season records.                                           |
+| `hydro_position`              | ⏳ Planned    | Permanent plant positions such as E1–E7 and W1–W6.                |
+| `crop_variety`                | ⏳ Planned    | Crop variety master list.                                         |
+| `hydro_season_planting`       | ⏳ Planned    | Season, position, and crop variety assignments.                   |
+| `hydro_harvest`               | ⏳ Planned    | Harvest records.                                                  |
+| `hydro_waste`                 | ⏳ Planned    | Waste and crop loss records.                                      |
+| `stg_maintenance_csv`         | ❌ Legacy     | CSV import staging table.                                         |
+| `purchases_legacy`            | ❌ Legacy     | Earlier purchase table.                                           |
+| `dry_chem_purchases_legacy`   | ❌ Legacy     | Earlier dry chemical purchase table.                              |
+| `nutrient_batches_legacy`     | ❌ Legacy     | Earlier nutrient batch table.                                     |
 
-```sql
-hydro_tds_reference_reading
-```
+## Views
 
-This workflow is triggered from Home Assistant using the **Measure EC** dashboard button.
-
-The workflow records:
-
-* Timestamp
-* System key
-* Probe voltage
-* Handheld meter value
-* Meter units
-* Tank gallons
-* Water temperature
-* Note
-
-This table is used to validate whether the probe voltage continues to reasonably match handheld EC/TDS meter readings over time.
-
-This is not a full calibration routine. It is a spot-check history used to detect drift or unexpected changes.
-
----
-
-# Partially Built Areas
-
-Several database areas exist, but are not yet fully integrated into the operating workflow.
-
-## Dry Ingredient Purchases
-
-Tables exist for purchase and ingredient tracking.
-
-Current related tables include:
-
-```sql
-ingredients
-purchases
-purchase_items
-dry_chem_purchases
-dry_chem_purchases_legacy
-purchases_legacy
-```
-
-The intent is to track the cost and quantity of dry nutrients such as:
-
-* MasterBlend 4-18-38
-* Calcium nitrate
-* Magnesium sulfate / Epsom salt
-
-However, there is not yet a clean Home Assistant or Node-RED workflow for entering new purchases.
-
-Current status:
-
-```text
-Tables exist.
-Some historical data may exist.
-No finished operator workflow exists.
-```
+| View                         | Status                       | Purpose                                                               |
+| ---------------------------- | ---------------------------- | --------------------------------------------------------------------- |
+| `v_hydro_recent_activity`    | ✅ Production / New           | Timeline view combining maintenance events and EC reference readings. |
+| `v_inventory_current`        | 🚧 Partial                   | Current inventory quantity by ingredient.                             |
+| `v_inventory_low`            | 🚧 Partial                   | Low inventory warning view.                                           |
+| `v_inventory_ledger_detail`  | 🚧 Partial                   | Inventory transaction detail.                                         |
+| `v_ingredient_inventory`     | 🚧 Partial                   | Ingredient inventory summary.                                         |
+| `v_remaining_batch_capacity` | 🚧 Partial                   | Estimated nutrient batches possible from remaining dry stock.         |
+| `v_purchase_costs_ytd`       | 🚧 Partial                   | Year-to-date purchase costs.                                          |
+| `v_unit_cost_per_item_ytd`   | 🚧 Partial                   | Unit cost calculations.                                               |
+| `v_batch_recipe`             | 🚧 Partial                   | Nutrient batch recipe detail.                                         |
+| `v_nutrient_batches_detail`  | 🚧 Partial                   | Nutrient batch detail.                                                |
+| `v_harvests`                 | ⏳ Planned / Legacy Dependent | Harvest reporting view.                                               |
+| `v_harvest_summary_ytd`      | ⏳ Planned / Legacy Dependent | Year-to-date harvest summary.                                         |
+| `dry_chem_purchases`         | ❌ Legacy View                | Old dry chemical purchase view.                                       |
+| `hydroponics_outside`        | ❌ Broken Legacy View         | Old view over maintenance data. Do not use.                           |
 
 ---
 
-## Nutrient Batch Building
+# Active Production Tables
 
-Tables exist for nutrient batch tracking.
+## `maintenance_log`
 
-Current related tables include:
+**Status:** ✅ Production
+**Purpose:** Primary operational event history.
+**Written By:** Node-RED `Hydroponics_Cycle_Manager.json`
+**Read By:** `v_hydro_recent_activity`, future history dashboard.
 
-```sql
-nutrient_batches
-nutrient_batch_items
-nutrient_batches_legacy
-nutrient_stock_solution
-```
+### Important Rule
 
-The intent is to track:
+`maintenance_log` is the active production event table.
 
-* When Part A and Part B stock solutions are mixed
-* Which dry ingredients were consumed
-* How much solution was produced
-* How much stock solution remains
-* Batch cost
+`hydroponics_outside_events` was dropped and is no longer part of the active schema.
 
-However, batch creation is not yet a complete guided workflow.
+### Columns
 
-Current status:
+| Column             | Type               | Notes                                                           |
+| ------------------ | ------------------ | --------------------------------------------------------------- |
+| `id`               | int auto_increment | Primary key                                                     |
+| `timestamp_utc`    | datetime           | Event time                                                      |
+| `internal_time`    | datetime           | Local/internal time                                             |
+| `source`           | varchar(32)        | Usually `outside`                                               |
+| `location`         | varchar(64)        | Usually `patio`                                                 |
+| `crop`             | varchar(32)        | Legacy / future crop context                                    |
+| `variety`          | varchar(64)        | Legacy / future variety context                                 |
+| `device`           | varchar(64)        | Source device or workflow                                       |
+| `event_type`       | enum               | `FILL`, `DOSE`, `BATCH`, `PURCHASE`, `NOTE`, `HARVEST`, `ALERT` |
+| `mode`             | varchar(32)        | Auto / Manual / ESP-Override                                    |
+| `system_gallons`   | float              | Tank/system gallons at event                                    |
+| `gallons_added`    | float              | Water added                                                     |
+| `dose_a_ml`        | float              | Nutrient Part A dose                                            |
+| `dose_b_ml`        | float              | Nutrient Part B dose                                            |
+| `tds_before`       | float              | Probe voltage before                                            |
+| `tds_after`        | float              | Probe voltage after                                             |
+| `ec_before`        | float              | Future EC value                                                 |
+| `ec_after`         | float              | Future EC value                                                 |
+| `plant`            | varchar(64)        | Legacy / future crop context                                    |
+| `harvest_weight_g` | float              | Legacy harvest field                                            |
+| `harvest_count`    | int                | Legacy harvest field                                            |
+| `harvest_unit`     | varchar(16)        | Default `item`                                                  |
+| `cost_usd`         | decimal(12,2)      | Legacy / future cost field                                      |
+| `note`             | text               | Automatic event summary generated by Node-RED                   |
+| `operator_note`    | text               | Optional operator-entered explanation for field notes           |
+| `raw_message`      | text               | Raw JSON/message from workflow      
 
-```text
-Tables exist.
-Some batch data exists.
-Manual database work is still required.
-```
+### Indexes
 
----
+| Index               | Column          |
+| ------------------- | --------------- |
+| `PRIMARY`           | `id`            |
+| `idx_ml_timestamp`  | `timestamp_utc` |
+| `idx_ml_source`     | `source`        |
+| `idx_ml_location`   | `location`      |
+| `idx_ml_event_type` | `event_type`    |
+| `idx_ml_crop`       | `crop`          |
+| `idx_ml_variety`    | `variety`       |
 
-## Inventory Ledger
+### Event Notes
 
-The database includes an inventory ledger.
+`maintenance_log` contains two different note fields with different purposes.
 
-Current related table:
+#### `note`
 
-```sql
-inventory_ledger
-```
+Automatically generated by the Hydroponics Cycle Manager.
 
-Supporting views include:
-
-```sql
-v_inventory_current
-v_inventory_ledger_detail
-v_inventory_low
-v_ingredient_inventory
-v_remaining_batch_capacity
-```
-
-The intent is to track inventory movement instead of directly editing remaining quantities.
-
-Inventory should eventually be updated by events such as:
-
-* Purchase
-* Batch mixed
-* Stock solution used
-* Adjustment
-* Waste / loss
-
-Current status:
-
-```text
-Ledger structure exists.
-Views exist.
-Operator workflows are incomplete.
-```
-
----
-
-# Legacy / Historical Tables
-
-## maintenance_log
-
-The table:
-
-```sql
-maintenance_log
-```
-
-was an earlier attempt to create a general-purpose system history table.
-
-It contains fields for:
-
-* Fill events
-* Dose events
-* Batch events
-* Purchase events
-* Notes
-* Harvest events
-* Alerts
-
-This table contains historical data, but it mixes too many concepts into one structure.
-
-Current decision:
-
-```text
-Do not expand this table.
-Do not use it as the future design.
-Keep it as historical reference for now.
-```
-
-Future work may migrate useful rows into newer event or production tables.
-
----
-
-## hydroponics_outside
-
-The database object:
-
-```sql
-hydroponics_outside
-```
-
-is currently a broken legacy view referencing `maintenance_log`.
-
-Current decision:
-
-```text
-Do not use this view for new work.
-Replace or remove after new timeline views are created.
-```
-
----
-
-# Crop Management Direction
-
-The project is expanding beyond controller automation.
-
-The database needs to support crop production management by season.
-
-New crop management tables have been started or planned:
-
-```sql
-hydro_season
-crop_variety
-hydro_position
-hydro_season_planting
-hydro_harvest
-hydro_waste
-```
-
-These tables are intended to support:
-
-* Growing seasons
-* Physical plant positions
-* East and West channel layouts
-* Crop varieties
-* Plant counts
-* Harvest quantity
-* Harvest weight
-* Waste / plant loss
-* Yield comparison by position
-* Yield comparison by variety
-
-This work is still early design and should not be treated as complete.
-
----
-
-# Design Philosophy
-
-The database should not just store raw logs.
-
-It should support decisions.
-
-The system should eventually answer questions such as:
-
-* When was the last fill?
-* When was the last dose?
-* Why did the system dose?
-* What were the system conditions at that time?
-* Is the EC probe drifting?
-* How fast are nutrients being consumed?
-* How much stock solution remains?
-* When will another nutrient batch be needed?
-* What plants are growing in each position?
-* Which plant varieties produced the most?
-* Did East or West channel perform better?
-* Did downstream plants underperform?
-* What was the cost per pound harvested?
-
----
-
-# Target Architecture
-
-The long-term architecture should separate the system into major data areas.
-
-## System Events
-
-Operational events from the controller.
+This field records what occurred during the event and should normally not be edited.
 
 Examples:
 
-* Auto dose
-* Manual dose
-* Fill
-* Mode change
-* Flow alarm
-* Equipment problem
-* EC reference check
+- auto FILL: added 11.37 gal water; dose A 114 mL...
+- manual DOSE: dose A 90 mL; dose B 90 mL...
 
-Primary tables:
+#### `operator_note`
 
-```sql
-hydroponics_outside_events
-hydro_tds_reference_reading
-```
+Optional operator comment added after the event.
 
-Future view:
+Used only when additional explanation is helpful, such as:
 
-```sql
-v_hydro_system_timeline
-```
+- equipment failures
+- wasted fills
+- sensor problems
+- calibration issues
+- unusual operating conditions
 
----
+Most events will have a NULL `operator_note`.
 
-## Inventory
-
-Dry ingredients, purchases, stock solution batches, and usage.
-
-Examples:
-
-* Purchase MasterBlend
-* Purchase calcium nitrate
-* Mix Part A
-* Mix Part B
-* Use stock solution during dosing
-* Adjust inventory after a spill or failed hose clamp
-
-Primary tables:
-
-```sql
-ingredients
-purchases
-purchase_items
-inventory_ledger
-nutrient_batches
-nutrient_batch_items
-nutrient_stock_solution
-```
-
----
-
-## Crop Season
-
-The crop layout for a growing season.
-
-Examples:
-
-* 2026 outside hydroponics season
-* East Channel position E1
-* West Channel position W5
-* Empty positions
-* Plant variety assignments
-
-Primary tables:
-
-```sql
-hydro_season
-hydro_position
-crop_variety
-hydro_season_planting
-```
-
----
-
-## Production
-
-Harvests and waste.
-
-Examples:
-
-* Harvest 7 tomatoes from E5
-* Total harvest weight 3.4 lb
-* Discard 2 split tomatoes
-* Remove failed plant
-
-Primary tables:
-
-```sql
-hydro_harvest
-hydro_waste
-```
-
----
-
-# Immediate Gaps
-
-The database currently lacks complete operator workflows for several important tasks.
-
-## Missing Workflows
-
-The following workflows are needed:
+Example:
 
 ```text
-1. Enter dry ingredient purchase
-2. Build nutrient batch
-3. Top off stock solution container
-4. Record inventory adjustment
-5. Record equipment/problem event
-6. View recent system history
-7. View EC reference history
-8. Create active season
-9. Assign plants to positions
-10. Record harvest
-11. Record waste
-```
-
-Without these workflows, the database will continue to feel disjointed because data exists in tables but cannot be easily entered or reviewed.
-
----
-
-# Dashboard Requirements
-
-Home Assistant should not expose raw database tables.
-
-The dashboard should provide task-based workflows.
-
-Examples:
-
-* Measure EC
-* Log Event
-* Mix Batch
-* Add Purchase
-* Record Harvest
-* Record Waste
-* View History
-* View Inventory
-* View Season Layout
-
-The dashboard should make normal operation possible without opening DBeaver.
-
----
-
-# Node-RED Requirements
-
-Node-RED should become the workflow engine that writes to the database.
-
-Node-RED should handle:
-
-* Reading Home Assistant helper values
-* Validating data
-* Building SQL inserts
-* Updating inventory ledgers
-* Writing event records
-* Publishing summary data back to Home Assistant
-
-This keeps SQL logic out of the dashboard and makes workflows easier to debug.
-
----
-
-# Recommended Implementation Order
-
-The next work should focus on making the existing database usable before adding more analysis.
-
-## Phase 1 — History Readback
-
-Create a dashboard-accessible history view for:
-
-* Recent system events
-* Recent EC reference readings
-
-Goal:
-
-```text
-Stop using DBeaver for routine history review.
+Fill wasted due to broken recirculating pump hose clamp. Nutrients discharged onto the patio instead of remaining in the reservoir.
 ```
 
 ---
 
-## Phase 2 — Event Logging
+## `hydro_tds_reference_reading`
 
-Create a general event entry workflow for problems and manual notes.
+**Status:** ✅ Production
+**Purpose:** Stores handheld meter checks against installed TDS/EC probe voltage.
+**Written By:** Node-RED `TDS_Reference.json`
+**Started From:** Home Assistant Measure EC popup
+**Read By:** `v_hydro_recent_activity`, future EC reference dashboard.
 
-This is needed for events such as:
+### Columns
 
-* Hose clamp failure
-* Bad dose
-* Manual correction
-* Equipment repair
-* Unusual plant symptoms
+| Column          | Type                  | Notes                          |
+| --------------- | --------------------- | ------------------------------ |
+| `id`            | bigint auto_increment | Primary key                    |
+| `captured_at`   | datetime              | Reading time                   |
+| `system_key`    | varchar(50)           | Default `outside`              |
+| `probe_voltage` | decimal(6,3)          | Installed probe voltage        |
+| `meter_value`   | decimal(8,2)          | Handheld meter reading         |
+| `meter_units`   | varchar(20)           | Usually `EC`                   |
+| `tank_gallons`  | decimal(8,2)          | Tank gallons at reading        |
+| `water_temp_f`  | decimal(6,2)          | Water temperature if available |
+| `note`          | varchar(255)          | Operator note                  |
 
-Goal:
+### Indexes
 
-```text
-Make important events easy to record when they happen.
-```
+| Index     | Column |
+| --------- | ------ |
+| `PRIMARY` | `id`   |
 
----
+# Partial Inventory and Nutrient Tables
 
-## Phase 3 — Inventory Entry
+## `ingredients`
 
-Create workflows for:
+**Status:** 🚧 Partial
+**Purpose:** Master ingredient list for dry nutrients and other inventory items.
+**Written By:** Manual SQL / future purchase workflow.
+**Read By:** Purchase, inventory, and batch views.
 
-* Purchase entry
-* Batch building
-* Stock solution tracking
-* Inventory adjustment
+### Columns
 
-Goal:
+| Column            | Type               | Notes        |
+| ----------------- | ------------------ | ------------ |
+| `ingredient_id`   | int auto_increment | Primary key  |
+| `ingredient_key`  | varchar(50)        | Unique key   |
+| `ingredient_name` | varchar(100)       | Display name |
+| `default_unit`    | varchar(20)        | Default `g`  |
 
-```text
-Make dry ingredient and nutrient stock data trustworthy.
-```
+### Indexes
 
----
-
-## Phase 4 — Season Layout
-
-Create workflows for:
-
-* Active season
-* Plant positions
-* Crop varieties
-* Plant assignments
-
-Goal:
-
-```text
-Connect production data to physical plant locations.
-```
-
----
-
-## Phase 5 — Harvest and Waste
-
-Create workflows for:
-
-* Harvest count
-* Total harvest weight
-* Waste count
-* Waste weight
-* Notes
-
-Goal:
-
-```text
-Start tracking production and cost per pound.
-```
+| Index            | Column           |
+| ---------------- | ---------------- |
+| `PRIMARY`        | `ingredient_id`  |
+| `ingredient_key` | `ingredient_key` |
 
 ---
 
-## Phase 6 — Analytics
+## `purchases`
 
-Create reports and dashboards for:
+**Status:** 🚧 Partial
+**Purpose:** Purchase header records for dry ingredients and supplies.
+**Written By:** Manual SQL / future purchase workflow.
+**Read By:** Purchase cost and inventory workflows.
 
-* Water usage
-* Nutrient usage
-* EC drift
-* Inventory forecast
-* Yield by variety
-* Yield by channel
-* Yield by position
-* Cost per pound
+### Columns
 
-Goal:
+| Column            | Type               | Notes               |
+| ----------------- | ------------------ | ------------------- |
+| `purchase_id`     | int auto_increment | Primary key         |
+| `order_number`    | varchar(50)        | Order number        |
+| `purchase_date`   | date               | Purchase date       |
+| `vendor`          | varchar(100)       | Default `Amazon`    |
+| `total_price_usd` | decimal(10,2)      | Total purchase cost |
+| `notes`           | text               | Notes               |
+| `created_at`      | timestamp          | Created timestamp   |
 
-```text
-Use the database to improve the system over future seasons.
-```
+### Indexes
+
+| Index     | Column        |
+| --------- | ------------- |
+| `PRIMARY` | `purchase_id` |
 
 ---
 
-# Current Conclusion
+## `purchase_items`
 
-The database is not yet a complete system.
+**Status:** 🚧 Partial
+**Purpose:** Purchased ingredient line items.
+**Written By:** Manual SQL / future purchase workflow.
+**Read By:** Inventory ledger and purchase cost views.
 
-It contains several useful pieces, but only two workflows are currently reliable:
+### Columns
 
-```text
-1. Controller/system event logging
-2. EC reference measurements
-```
+| Column             | Type               | Notes                  |
+| ------------------ | ------------------ | ---------------------- |
+| `purchase_item_id` | int auto_increment | Primary key            |
+| `purchase_id`      | int                | Links to `purchases`   |
+| `ingredient_id`    | int                | Links to `ingredients` |
+| `quantity_lb`      | decimal(10,3)      | Quantity in pounds     |
+| `quantity_g`       | decimal(10,2)      | Quantity in grams      |
+| `item_price_usd`   | decimal(10,2)      | Item cost              |
+| `notes`            | text               | Notes                  |
+| `created_at`       | timestamp          | Created timestamp      |
 
-The rest of the database should be treated as a partially implemented foundation.
+### Indexes
 
-The next priority is not to add more tables. The next priority is to create reliable workflows for entering and viewing the data already modeled.
+| Index           | Column             |
+| --------------- | ------------------ |
+| `PRIMARY`       | `purchase_item_id` |
+| `purchase_id`   | `purchase_id`      |
+| `ingredient_id` | `ingredient_id`    |
 
-Once those workflows exist, the database can become the central management system for the hydroponic garden.
+---
+
+## `inventory_ledger`
+
+**Status:** 🚧 Partial
+**Purpose:** Tracks dry ingredient inventory changes over time.
+**Written By:** Manual SQL / future purchase, batch, and adjustment workflows.
+**Read By:** Inventory views.
+
+### Columns
+
+| Column          | Type               | Notes                                     |
+| --------------- | ------------------ | ----------------------------------------- |
+| `ledger_id`     | int auto_increment | Primary key                               |
+| `ledger_date`   | date               | Ledger event date                         |
+| `ingredient_id` | int                | Links to `ingredients`                    |
+| `event_type`    | enum               | `PURCHASE`, `BATCH_USE`, `RECONCILIATION` |
+| `source_table`  | varchar(50)        | Source object name                        |
+| `source_id`     | int                | Source record id                          |
+| `delta_g`       | decimal(10,2)      | Inventory increase/decrease in grams      |
+| `notes`         | text               | Notes                                     |
+| `created_at`    | timestamp          | Created timestamp                         |
+
+### Indexes
+
+| Index           | Column          |
+| --------------- | --------------- |
+| `PRIMARY`       | `ledger_id`     |
+| `ingredient_id` | `ingredient_id` |
+
+---
+
+## `nutrient_batches`
+
+**Status:** 🚧 Partial
+**Purpose:** Nutrient stock solution batch header.
+**Written By:** Manual SQL / future batch-building workflow.
+**Read By:** Nutrient batch views and stock solution tracking.
+
+### Columns
+
+| Column            | Type               | Notes             |
+| ----------------- | ------------------ | ----------------- |
+| `batch_id`        | int auto_increment | Primary key       |
+| `batch_code`      | varchar(50)        | Unique batch code |
+| `batch_date`      | date               | Batch date        |
+| `batch_part`      | enum               | `A` or `B`        |
+| `final_volume_ml` | decimal(10,2)      | Default `3785.00` |
+| `notes`           | text               | Notes             |
+| `created_at`      | timestamp          | Created timestamp |
+
+### Indexes
+
+| Index        | Column       |
+| ------------ | ------------ |
+| `PRIMARY`    | `batch_id`   |
+| `batch_code` | `batch_code` |
+
+---
+
+## `nutrient_batch_items`
+
+**Status:** 🚧 Partial
+**Purpose:** Ingredients used in each nutrient batch.
+**Written By:** Manual SQL / future batch-building workflow.
+**Read By:** Batch recipe and inventory workflows.
+
+### Columns
+
+| Column          | Type               | Notes                       |
+| --------------- | ------------------ | --------------------------- |
+| `batch_item_id` | int auto_increment | Primary key                 |
+| `batch_id`      | int                | Links to `nutrient_batches` |
+| `ingredient_id` | int                | Links to `ingredients`      |
+| `quantity_g`    | decimal(10,2)      | Quantity used               |
+| `notes`         | text               | Notes                       |
+| `created_at`    | timestamp          | Created timestamp           |
+
+### Indexes
+
+| Index           | Column          |
+| --------------- | --------------- |
+| `PRIMARY`       | `batch_item_id` |
+| `batch_id`      | `batch_id`      |
+| `ingredient_id` | `ingredient_id` |
+
+---
+
+## `nutrient_stock_solution`
+
+**Status:** 🚧 Partial
+**Purpose:** Tracks Part A and Part B stock solution container volumes.
+**Written By:** Manual SQL / future batch-building and top-off workflows.
+**Read By:** Future inventory and dosing dashboards.
+
+### Columns
+
+| Column               | Type               | Notes                         |
+| -------------------- | ------------------ | ----------------------------- |
+| `stock_solution_id`  | int auto_increment | Primary key                   |
+| `stock_part`         | enum               | `A` or `B`                    |
+| `created_date`       | date               | Created date                  |
+| `source_batch_code`  | varchar(50)        | Source batch                  |
+| `starting_volume_ml` | decimal(10,2)      | Starting volume               |
+| `current_volume_ml`  | decimal(10,2)      | Current volume                |
+| `status`             | enum               | `ACTIVE`, `EMPTY`, `ARCHIVED` |
+| `notes`              | text               | Notes                         |
+| `created_at`         | timestamp          | Created timestamp             |
+
+### Indexes
+
+| Index     | Column              |
+| --------- | ------------------- |
+| `PRIMARY` | `stock_solution_id` |
+
+# Season, Planting, Harvest, and Waste Tables
+
+## `hydro_season`
+
+**Status:** ⏳ Planned  
+**Purpose:** Defines growing seasons.  
+**Written By:** Future season setup workflow.  
+**Read By:** Planting, harvest, waste, and production reports.
+
+### Columns
+
+| Column | Type | Notes |
+|---|---|---|
+| `season_id` | int auto_increment | Primary key |
+| `system_key` | varchar(50) | Default `outside` |
+| `season_year` | int | Season year |
+| `season_name` | varchar(100) | Display name |
+| `start_date` | date | Start date |
+| `end_date` | date | End date |
+| `status` | enum | `planned`, `active`, `closed`, `archived` |
+| `notes` | text | Notes |
+| `created_at` | datetime | Created timestamp |
+
+### Indexes
+
+| Index | Column |
+|---|---|
+| `PRIMARY` | `season_id` |
+| `uq_hydro_season` | `system_key`, `season_year` |
+
+---
+
+## `hydro_position`
+
+**Status:** ⏳ Planned  
+**Purpose:** Defines fixed planting positions in the outside hydroponics system.  
+**Written By:** Manual setup / future layout workflow.  
+**Read By:** Season planting, harvest, and waste workflows.
+
+### Columns
+
+| Column | Type | Notes |
+|---|---|---|
+| `position_id` | int auto_increment | Primary key |
+| `system_key` | varchar(50) | Default `outside` |
+| `channel` | varchar(20) | East / West |
+| `position_code` | varchar(10) | Example `E1`, `W6` |
+| `position_number` | int | Position number within channel |
+| `flow_order` | int | Order in flow path |
+| `active` | tinyint(1) | Active flag |
+| `notes` | text | Notes |
+
+### Indexes
+
+| Index | Column |
+|---|---|
+| `PRIMARY` | `position_id` |
+| `uq_hydro_position` | `system_key`, `position_code` |
+
+---
+
+## `crop_variety`
+
+**Status:** ⏳ Planned  
+**Purpose:** Master crop variety list.  
+**Written By:** Future crop variety setup workflow.  
+**Read By:** Season planting, harvest, and production reports.
+
+### Columns
+
+| Column | Type | Notes |
+|---|---|---|
+| `variety_id` | int auto_increment | Primary key |
+| `crop_type` | varchar(50) | Example tomato, pepper |
+| `variety_name` | varchar(100) | Variety name |
+| `seed_source` | varchar(100) | Seed/source |
+| `notes` | text | Notes |
+| `active` | tinyint(1) | Active flag |
+| `created_at` | datetime | Created timestamp |
+
+### Indexes
+
+| Index | Column |
+|---|---|
+| `PRIMARY` | `variety_id` |
+| `uq_crop_variety` | `crop_type`, `variety_name` |
+
+## `hydro_season_planting`
+
+**Status:** ⏳ Planned  
+**Purpose:** Assigns a crop variety to a specific planting position for a season.  
+**Written By:** Future planting workflow.  
+**Read By:** Harvest, waste, and production reporting.
+
+### Relationships
+
+- `season_id` → `hydro_season`
+- `position_id` → `hydro_position`
+- `variety_id` → `crop_variety`
+
+### Columns
+
+| Column | Type | Notes |
+|---|---|---|
+| `planting_id` | int auto_increment | Primary key |
+| `season_id` | int | Growing season |
+| `position_id` | int | Plant position |
+| `variety_id` | int | Crop variety |
+| `plant_count` | int | Normally 1 |
+| `planted_date` | date | Date planted |
+| `removed_date` | date | Date removed |
+| `status` | enum | `planned`, `planted`, `removed`, `failed`, `empty` |
+| `notes` | text | Notes |
+| `created_at` | datetime | Created timestamp |
+
+### Indexes
+
+| Index | Column |
+|---|---|
+| `PRIMARY` | `planting_id` |
+| `uq_season_position` | `season_id`, `position_id` |
+| `fk_planting_position` | `position_id` |
+| `fk_planting_variety` | `variety_id` |
+
+### Business Rules
+
+- A planting position may only be used once within a season.
+- Historical plantings are never overwritten.
+
+---
+
+## `hydro_harvest`
+
+**Status:** ⏳ Planned  
+**Purpose:** Records harvested produce.  
+**Written By:** Future harvest workflow.  
+**Read By:** Harvest history, production reports, and cost analysis.
+
+### Relationships
+
+- `season_id` → `hydro_season`
+- `planting_id` → `hydro_season_planting`
+
+### Columns
+
+| Column | Type | Notes |
+|---|---|---|
+| `harvest_id` | int auto_increment | Primary key |
+| `season_id` | int | Growing season |
+| `planting_id` | int | Plant harvested |
+| `harvested_at` | datetime | Harvest date/time |
+| `harvest_count` | int | Quantity harvested |
+| `harvest_unit` | varchar(20) | Default `item` |
+| `total_weight` | decimal | Total weight |
+| `weight_unit` | enum | `lb`, `oz`, `g`, `kg` |
+| `quality` | enum | `good`, `mixed`, `poor`, `waste` |
+| `notes` | text | Notes |
+| `created_at` | datetime | Created timestamp |
+
+### Indexes
+
+| Index | Column |
+|---|---|
+| `PRIMARY` | `harvest_id` |
+| `fk_harvest_season` | `season_id` |
+| `fk_harvest_planting` | `planting_id` |
+| `idx_harvest_date` | `harvested_at` |
+
+### Business Rules
+
+- Every harvest belongs to one planting.
+- Multiple harvests may exist for the same planting.
+
+---
+
+## `hydro_waste`
+
+**Status:** ⏳ Planned  
+**Purpose:** Records crop losses and discarded produce.  
+**Written By:** Future waste workflow.  
+**Read By:** Waste reports and production analytics.
+
+### Relationships
+
+- `season_id` → `hydro_season`
+- `planting_id` → `hydro_season_planting`
+
+### Columns
+
+| Column | Type | Notes |
+|---|---|---|
+| `waste_id` | int auto_increment | Primary key |
+| `season_id` | int | Growing season |
+| `planting_id` | int | Optional planting reference |
+| `wasted_at` | datetime | Date/time |
+| `waste_type` | enum | `fruit_loss`, `plant_loss`, `disease`, `pest`, `damage`, `other` |
+| `waste_count` | int | Quantity |
+| `waste_weight` | decimal | Weight discarded |
+| `weight_unit` | enum | `lb`, `oz`, `g`, `kg` |
+| `reason` | text | Reason for loss |
+| `notes` | text | Notes |
+| `created_at` | datetime | Created timestamp |
+
+### Indexes
+
+| Index | Column |
+|---|---|
+| `PRIMARY` | `waste_id` |
+| `fk_waste_season` | `season_id` |
+| `fk_waste_planting` | `planting_id` |
+| `idx_waste_date` | `wasted_at` |
+
+### Business Rules
+
+- Waste may be associated with a planting or recorded as a general system loss.
+- Waste records should complement harvest records to support production efficiency analysis.
+
+# Views
+
+Views are used to simplify dashboard readback, reporting, and troubleshooting.
+
+Views should not be treated as source data. Source data belongs in the base tables.
+
+---
+
+## `v_hydro_recent_activity`
+
+**Status:** ✅ Production / New  
+**Purpose:** Recent system activity timeline.
+
+### Source Tables
+
+- `maintenance_log`
+- `hydro_tds_reference_reading`
+
+### Used By
+
+- Future Recent Activity dashboard
+- DBeaver troubleshooting
+- History readback
+
+### Notes
+
+This view is the current readback source for recent fill, dose, and EC reference activity.
+
+---
+
+## Inventory Views
+
+| View | Status | Source Tables | Purpose |
+|---|---|---|---|
+| `v_inventory_current` | 🚧 Partial | `ingredients`, `inventory_ledger` | Current ingredient quantity. |
+| `v_inventory_low` | 🚧 Partial | `v_inventory_current` | Low inventory warning. |
+| `v_inventory_ledger_detail` | 🚧 Partial | `inventory_ledger`, `ingredients` | Ledger detail with ingredient names. |
+| `v_ingredient_inventory` | 🚧 Partial | `ingredients`, `inventory_ledger` | Ingredient inventory summary. |
+| `v_remaining_batch_capacity` | 🚧 Partial | `v_inventory_current` | Estimated nutrient batches possible. |
+
+---
+
+## Purchase Views
+
+| View | Status | Purpose |
+|---|---|---|
+| `v_purchase_costs_ytd` | 🚧 Partial | Year-to-date purchase cost summary. |
+| `v_unit_cost_per_item_ytd` | 🚧 Partial | Unit cost calculations. |
+| `dry_chem_purchases` | ❌ Legacy | Old dry chemical purchase view. |
+
+---
+
+## Nutrient Batch Views
+
+| View | Status | Source Tables | Purpose |
+|---|---|---|---|
+| `v_batch_recipe` | 🚧 Partial | `nutrient_batches`, `nutrient_batch_items`, `ingredients` | Batch recipe detail. |
+| `v_nutrient_batches_detail` | 🚧 Partial | `nutrient_batches`, `nutrient_batch_items`, `ingredients` | Nutrient batch detail. |
+
+---
+
+## Production Views
+
+| View | Status | Purpose |
+|---|---|---|
+| `v_harvests` | ⏳ Planned / Legacy Dependent | Harvest reporting. |
+| `v_harvest_summary_ytd` | ⏳ Planned / Legacy Dependent | Year-to-date harvest summary. |
+
+---
+
+## Legacy Views
+
+| View | Status | Notes |
+|---|---|---|
+| `hydroponics_outside` | ❌ Broken Legacy | Old view over maintenance data. Do not use for new dashboards or workflows. |
+
+# Workflow Map
+
+This section identifies which subsystem owns each workflow and which database objects it writes.
+
+| Workflow                       | Started From                    | Processed By                              | Database Objects                                                                          | Status       |
+| ------------------------------ | ------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------- | ------------ |
+| Fill / Dose Cycle Logging      | ESPHome switch state changes    | Node-RED `Hydroponics_Cycle_Manager.json` | `maintenance_log`                                                                         | ✅ Production |
+| EC / TDS Reference Measurement | Home Assistant Measure EC popup | Node-RED `TDS_Reference.json`             | `hydro_tds_reference_reading`                                                             | ✅ Production |
+| Equipment Event Entry          | Home Assistant dashboard        | Future Node-RED workflow                  | `maintenance_log`                                                                         | ⏳ Planned    |
+| Dry Ingredient Purchase        | Home Assistant dashboard        | Future Node-RED workflow                  | `purchases`, `purchase_items`, `inventory_ledger`                                         | ⏳ Planned    |
+| Inventory Adjustment           | Home Assistant dashboard        | Future Node-RED workflow                  | `inventory_ledger`                                                                        | ⏳ Planned    |
+| Nutrient Batch Building        | Home Assistant dashboard        | Future Node-RED workflow                  | `nutrient_batches`, `nutrient_batch_items`, `inventory_ledger`, `nutrient_stock_solution` | ⏳ Planned    |
+| Stock Solution Top-Off         | Home Assistant dashboard        | Future Node-RED workflow                  | `nutrient_stock_solution`                                                                 | ⏳ Planned    |
+| Season Setup                   | Home Assistant dashboard        | Future Node-RED workflow                  | `hydro_season`                                                                            | ⏳ Planned    |
+| Planting Assignment            | Home Assistant dashboard        | Future Node-RED workflow                  | `hydro_season_planting`                                                                   | ⏳ Planned    |
+| Harvest Entry                  | Home Assistant dashboard        | Future Node-RED workflow                  | `hydro_harvest`                                                                           | ⏳ Planned    |
+| Waste Entry                    | Home Assistant dashboard        | Future Node-RED workflow                  | `hydro_waste`                                                                             | ⏳ Planned    |
+
+---
+
+# Current Development Priorities
+
+The database schema is largely complete.
+
+Future development should focus on implementing operator workflows rather than adding new tables.
+
+Current priorities are:
+
+1. History Dashboard
+2. Equipment Event Entry
+3. Dry Ingredient Purchase Workflow
+4. Nutrient Batch Building
+5. Stock Solution Inventory Management
+6. Inventory Adjustment Workflow
+7. Season Setup
+8. Planting Assignment
+9. Harvest Entry
+10. Waste Entry
+
+---
+
+# Revision History
+
+| Date       | Revision | Description                                                                                                                                                                                                                                                                  |
+| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-06-28 | 0.2      | Reorganized the document into a database reference. Added object inventory, table documentation, views, workflow ownership, and development priorities. Updated to reflect `maintenance_log` as the production event table after retirement of `hydroponics_outside_events`. |
