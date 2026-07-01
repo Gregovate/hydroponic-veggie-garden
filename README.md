@@ -48,13 +48,17 @@ Each layer has a well-defined responsibility.
 
 The engineering manual is located in the **docs** folder.
 
-| Document                           | Description                                                                 |
-| ---------------------------------- | --------------------------------------------------------------------------- |
-| `00-system-overview.md`            | Overall project architecture and design philosophy.                         |
-| `01-database-design.md`            | Database schema, normalization, and design decisions.                       |
-| `02-season-and-layout.md`          | Seasonal crop layouts and planting management.                              |
-| `03-harvest-and-waste-tracking.md` | Harvest, waste, and production history.                                     |
-| `04-dashboard-history-design.md`   | Home Assistant dashboard philosophy, Hydro-History, and operator workflows. |
+| Document | Description |
+|----------|-------------|
+| [00 – System Overview](docs/00-system-overview.md) | Overall project architecture, system objectives, and engineering philosophy. |
+| [01 – Database Design](docs/01-database-design.md) | MariaDB schema, normalization, design rationale, and database architecture. |
+| [02 – Season & Layout](docs/02-season-and-layout.md) | Seasonal crop layouts, planting locations, and production planning. |
+| [03 – Harvest & Waste Tracking](docs/03-harvest-and-waste-tracking.md) | Harvest recording, waste tracking, and production analysis. |
+| [04 – Dashboard & History Design](docs/04-dashboard-history-design.md) | Home Assistant dashboards, Hydro-History browser, and operator workflows. |
+| 05 – Nutrient Management & EC Control *(In Development)* | Nutrient management strategy, EC control philosophy, and automatic dosing. |
+| 06 – Monitoring & Notification System *(Planned)* | Monitoring strategy, alarms, notifications, and fault handling. |
+| 07 – Nutrient Inventory Management *(Planned)* | Dry inventory, stock solutions, batch management, and forecasting. |
+| 99 – Disaster Recovery *(Planned)* | Procedures to rebuild the complete system after a major hardware or software failure. |
 
 Additional engineering documents will continue to be added as the project evolves.
 
