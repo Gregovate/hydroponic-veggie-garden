@@ -24,7 +24,7 @@ Routine operation should not require opening Node-RED, DBeaver, or MariaDB. Thos
 | Controller Mode Selection | ✅ Production | 2026-06-26    | 2026-06-28   |
 | EC Reference Measurement  | ✅ Production | 2026-06-28    | 2026-06-28   |
 Recent Activity Dashboard | 🚧 In Development | 2026-06-28 | 2026-06-29   |
-| Event Annotation          | ⏳ Planned    | —             | 2026-06-28   |
+| Event Annotation          | ✅ Production  | 2026-06-30   | 2026-06-30   |
 | Inventory Dashboard       | ⏳ Planned    | —             | 2026-06-28   |
 | Batch Building Workflow   | ⏳ Planned    | —             | 2026-06-28   |
 | Harvest Dashboard         | ⏳ Planned    | —             | 2026-06-28   |
@@ -173,7 +173,19 @@ Status: ✅ Complete
 - Select an event.
 - Display complete event details.
 
-Status: 🚧 In Progress
+
+## Phase 2a — Event Selection
+
+- Browse recent history
+- Page forward/back through history
+- Step forward/back one record
+- Select an existing maintenance_log event
+- Populate operator editing controls
+- Edit existing operator notes
+- Save annotation directly to maintenance_log
+A- utomatically refresh the browser after savew operator annotation of the selected event.
+  
+Status: ✅ Complete
 
 ---
 
@@ -181,11 +193,10 @@ Status: 🚧 In Progress
 
 Selected events may initiate workflows such as:
 
-- Add operator note
-- Record equipment issue
-- Record maintenance performed
-- Record repair completed
-- Create standalone operational note
+- Create standalone field note
+- Equipment issue workflow
+- Maintenance completed workflow
+- Event detail popup (optional)
 
 Status: ⏳ Planned
 
@@ -243,7 +254,11 @@ Examples:
 * Incorrect manual dose
 * Equipment replaced
 
-Annotations should never overwrite the original event.
+The original operational event remains unchanged.
+
+Only the dedicated operator_note field may be edited after the event has been recorded.
+
+This preserves the measured operational data while allowing additional human context to be attached later.
 
 Instead, they become additional historical information linked to that event.
 
@@ -275,6 +290,8 @@ Both fill-and-dose cycles were therefore lost.
 
 The hose clamp was replaced and normal operation resumed.
 ```
+
+The explanation is stored in the operator_note field associated with the selected maintenance_log record and is displayed alongside the event within the Hydro-History browser.
 
 This preserves both:
 

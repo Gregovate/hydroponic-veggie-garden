@@ -1,0 +1,281 @@
+[
+    {
+        "id": "hydro_history_build_save_note_sql",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Add Note to Selected Event",
+        "func": "// Save operator note to existing maintenance_log record.\n\nconst maintenanceLogId = Number(\n    msg.payload?.maintenance_log_id ??\n    msg.payload?.event?.maintenance_log_id ??\n    msg.event?.maintenance_log_id\n);\n\nconst operatorNote = String(\n    msg.payload?.operator_note ??\n    msg.payload?.event?.operator_note ??\n    msg.event?.operator_note ??\n    \"\"\n).trim();\n\nfunction sqlText(value) {\n    if (value === undefined || value === null) return \"NULL\";\n    const s = String(value).trim();\n    if (s.length === 0) return \"NULL\";\n    return \"'\" + s.replace(/'/g, \"''\") + \"'\";\n}\n\nif (!Number.isInteger(maintenanceLogId) || maintenanceLogId <= 0) {\n    node.error(\"Save operator note failed: invalid maintenance_log_id\", msg);\n    return null;\n}\n\nif (!operatorNote) {\n    node.error(\"Save operator note failed: operator note is empty\", msg);\n    return null;\n}\n\nmsg.topic = `\nUPDATE maintenance_log\nSET operator_note = ${sqlText(operatorNote)}\nWHERE id = ${maintenanceLogId};\n`;\n\nmsg.payload = {\n    maintenance_log_id: maintenanceLogId,\n    operator_note: operatorNote\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1100,
+        "y": 2120,
+        "wires": [
+            [
+                "hydro_history_update_operator_note",
+                "hydro_history_save_note_sql_debug"
+            ]
+        ]
+    },
+    {
+        "id": "hydro_history_save_note_sql_debug",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Operator Note SQL Preview",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "topic",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1460,
+        "y": 2060,
+        "wires": []
+    },
+    {
+        "id": "hydro_history_update_operator_note",
+        "type": "mysql",
+        "z": "3ec2ad8e53afdcdc",
+        "mydb": "mysql_logbook_placeholder",
+        "name": "Update Operator Note",
+        "x": 1440,
+        "y": 2120,
+        "wires": [
+            [
+                "hydro_history_update_note_result",
+                "hydro_history_refresh_after_note"
+            ]
+        ]
+    },
+    {
+        "id": "hydro_history_update_note_result",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Operator Note Update Result",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1780,
+        "y": 2060,
+        "wires": []
+    },
+    {
+        "id": "hydro_history_refresh_after_note",
+        "type": "api-call-service",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Refresh History Browser",
+        "server": "28f1afb.2a0725",
+        "version": 7,
+        "debugenabled": false,
+        "action": "script.hydro_history_refresh",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [],
+        "labelId": [],
+        "data": "{}",
+        "dataType": "json",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": false,
+        "domain": "script",
+        "service": "hydro_history_refresh",
+        "x": 1770,
+        "y": 2120,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "hydro_history_init_save_note",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Init Save Note Payload",
+        "func": "msg.payload = {};\nreturn msg;",
+        "outputs": 1,
+        "x": 380,
+        "y": 2120,
+        "wires": [
+            [
+                "hydro_history_get_selected_id"
+            ]
+        ]
+    },
+    {
+        "id": "hydro_history_save_note_button",
+        "type": "server-state-changed",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Save Operator Note Button",
+        "server": "28f1afb.2a0725",
+        "version": 6,
+        "outputs": 1,
+        "exposeAsEntityConfig": "",
+        "entities": {
+            "entity": [
+                "input_button.hydro_history_save_operator_note"
+            ],
+            "substring": [],
+            "regex": []
+        },
+        "outputInitially": false,
+        "stateType": "str",
+        "ifState": "",
+        "ifStateType": "str",
+        "ifStateOperator": "is",
+        "outputOnlyOnStateChange": true,
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "ignorePrevStateNull": true,
+        "ignorePrevStateUnknown": true,
+        "ignorePrevStateUnavailable": true,
+        "ignoreCurrentStateUnknown": false,
+        "ignoreCurrentStateUnavailable": false,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "eventData"
+            }
+        ],
+        "x": 130,
+        "y": 2120,
+        "wires": [
+            [
+                "hydro_history_init_save_note"
+            ]
+        ]
+    },
+    {
+        "id": "hydro_history_get_selected_id",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get Selected Event ID",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "input_text.hydro_history_selected_event_id",
+        "state_type": "str",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "payload.maintenance_log_id",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 620,
+        "y": 2120,
+        "wires": [
+            [
+                "hydro_history_get_operator_note"
+            ]
+        ]
+    },
+    {
+        "id": "hydro_history_get_operator_note",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get Operator Note",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "input_text.hydro_history_operator_note",
+        "state_type": "str",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "payload.operator_note",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 850,
+        "y": 2120,
+        "wires": [
+            [
+                "hydro_history_build_save_note_sql"
+            ]
+        ]
+    },
+    {
+        "id": "mysql_logbook_placeholder",
+        "type": "MySQLdatabase",
+        "name": "MariaDB logbook",
+        "host": "core-mariadb",
+        "port": "3306",
+        "db": "logbook",
+        "tz": "",
+        "charset": "UTF8"
+    },
+    {
+        "id": "28f1afb.2a0725",
+        "type": "server",
+        "name": "Home Assistant",
+        "version": 6,
+        "addon": true,
+        "rejectUnauthorizedCerts": true,
+        "ha_boolean": [
+            "y",
+            "yes",
+            "true",
+            "on",
+            "home",
+            "open"
+        ],
+        "connectionDelay": true,
+        "cacheJson": true,
+        "heartbeat": false,
+        "heartbeatInterval": 30,
+        "areaSelector": "friendlyName",
+        "deviceSelector": "friendlyName",
+        "entitySelector": "friendlyName",
+        "statusSeparator": "at: ",
+        "statusYear": "hidden",
+        "statusMonth": "short",
+        "statusDay": "numeric",
+        "statusHourCycle": "h23",
+        "statusTimeFormat": "h:m",
+        "enableGlobalContextStore": true
+    },
+    {
+        "id": "7ec9a2eb7fe25954",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-node-mysql": "3.0.0",
+            "node-red-contrib-home-assistant-websocket": "0.80.3"
+        }
+    }
+]
