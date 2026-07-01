@@ -1,8 +1,8 @@
 # Dashboard and History Design
 
-**Revision:** 0.2
-**Last Updated:** 2026-06-28
-**Status:** Active Design
+**Revision:** 0.3
+**Last Updated:** 2026-07-01
+**Status:** Active Design / Partial Implementation
 
 ---
 
@@ -18,16 +18,16 @@ Routine operation should not require opening Node-RED, DBeaver, or MariaDB. Thos
 
 # Development Status
 
-| Component                 | Status       | First Working | Last Updated |
-| ------------------------- | ------------ | ------------- | ------------ |
-| Current Status Dashboard  | 🚧 Partial   | 2026-06-26    | 2026-06-28   |
-| Controller Mode Selection | ✅ Production | 2026-06-26    | 2026-06-28   |
-| EC Reference Measurement  | ✅ Production | 2026-06-28    | 2026-06-28   |
-Recent Activity Dashboard | 🚧 In Development | 2026-06-28 | 2026-06-29   |
-| Event Annotation          | ✅ Production  | 2026-06-30   | 2026-06-30   |
-| Inventory Dashboard       | ⏳ Planned    | —             | 2026-06-28   |
-| Batch Building Workflow   | ⏳ Planned    | —             | 2026-06-28   |
-| Harvest Dashboard         | ⏳ Planned    | —             | 2026-06-28   |
+| Component                 | Status           | First Working | Last Updated |
+| ------------------------- | ---------------- | ------------- | ------------ |
+| Current Status Dashboard  | 🚧 Partial       | 2026-06-26    | 2026-06-28   |
+| Controller Mode Selection | ✅ Production    | 2026-06-26    | 2026-06-28   |
+| EC Reference Measurement  | ✅ Production    | 2026-06-28    | 2026-06-28   |
+| Hydro-History Browser     | 🚧 Partial       | 2026-06-29    | 2026-07-01   |
+| Event Annotation          | ✅ Production    | 2026-06-30    | 2026-07-01   |
+| Inventory Dashboard       | ⏳ Planned       | —             | 2026-06-28   |
+| Batch Building Workflow   | ⏳ Planned       | —             | 2026-06-28   |
+| Harvest Dashboard         | ⏳ Planned       | —             | 2026-06-28   |
 
 ---
 
@@ -179,11 +179,11 @@ Status: ✅ Complete
 - Browse recent history
 - Page forward/back through history
 - Step forward/back one record
-- Select an existing maintenance_log event
+- Select a source-aware activity record
 - Populate operator editing controls
 - Edit existing operator notes
-- Save annotation directly to maintenance_log
-A- utomatically refresh the browser after savew operator annotation of the selected event.
+- Save annotation back to the correct source table
+- Automatically refresh the browser after save
   
 Status: ✅ Complete
 
@@ -194,11 +194,13 @@ Status: ✅ Complete
 Selected events may initiate workflows such as:
 
 - Create standalone field note
+- Optional field note date override
+- Field note location/area context
 - Equipment issue workflow
 - Maintenance completed workflow
 - Event detail popup (optional)
 
-Status: ⏳ Planned
+Status: 🚧 Partial (Field Notes complete; additional workflows pending)
 
 ---
 
@@ -218,6 +220,7 @@ Implementation details are documented separately in:
 | ----------------------------- | ------------ | ------------------------------------------------------------------------------------------- |
 | Measure EC                    | ✅ Production | Records a handheld EC/TDS reference measurement for comparison with the installed probe.    |
 | Automatic Fill / Dose Logging | ✅ Production | Automatically records completed fill and nutrient dosing cycles in the maintenance history. |
+| Standalone Field Note | ✅ Production | Creates a standalone NOTE event in `maintenance_log` with optional date and location context. |
 
 ## Planned Workflows
 
@@ -228,12 +231,14 @@ Implementation details are documented separately in:
 | Build Nutrient Batch | Create stock solution batches and update inventory.           |
 | Harvest Entry        | Record harvested produce by season and planting position.     |
 | Waste Entry          | Record crop losses and discarded produce.                     |
-| History Browser       | Browse and investigate historical operational events.             |
-| Operator Notes        | Attach additional context or create standalone operational notes. |
 
 ---
 
 # Event Annotation
+
+Operator notes may be attached to supported Hydro-History activity records, including `maintenance_log` records and EC reference records from `hydro_tds_reference_reading`.
+
+The selected activity stores both the activity source and source ID, such as `maintenance_log:52` or `ec_reference:5`, so notes are written back to the correct database table.
 
 Operational events record **what** happened.
 
@@ -291,8 +296,9 @@ Both fill-and-dose cycles were therefore lost.
 The hose clamp was replaced and normal operation resumed.
 ```
 
-The explanation is stored in the operator_note field associated with the selected maintenance_log record and is displayed alongside the event within the Hydro-History browser.
+The explanation is stored in the `operator_note` field associated with the selected activity record and is displayed alongside the event within the Hydro-History browser.
 
+Depending on the selected activity, the note may be stored in either `maintenance_log` or `hydro_tds_reference_reading`.
 This preserves both:
 
 * The original measurements
@@ -361,4 +367,5 @@ Direct database access should rarely be necessary outside of engineering, develo
 
 | Date       | Revision | Description                                                                                                                                                                                                  |
 | ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-07-01 | 0.3 | Added Hydro-History browser enhancements including source-aware activity selection, operator notes for both maintenance and EC reference records, standalone field notes with optional date/location context, EC reference water temperature display, and updated workflow documentation. |
 | 2026-06-28 | 0.2      | Reorganized document around dashboard functionality, operator workflows, event history, and long-term design. Removed implementation details that are documented in the Node-RED and Home Assistant READMEs. |

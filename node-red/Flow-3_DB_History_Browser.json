@@ -66,15 +66,15 @@
         "id": "fbc1559bf50e083e",
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
-        "name": "Format Recent Activity (Debug)",
-        "func": "const rows = Array.isArray(msg.payload) ? msg.payload : [];\n\nfunction fmtNum(v, decimals) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(decimals) : null;\n}\n\nfunction fmtDate(v) {\n    if (!v) return \"\";\n    const d = new Date(v);\n    if (Number.isNaN(d.getTime())) return String(v);\n    return d.toLocaleString(\"en-US\", {\n        month: \"2-digit\",\n        day: \"2-digit\",\n        hour: \"2-digit\",\n        minute: \"2-digit\",\n        hour12: false\n    });\n}\n\nconst lines = rows.map(r => {\n    const details = [];\n\n    if (fmtNum(r.fill_gallons, 2)) details.push(`Fill: ${fmtNum(r.fill_gallons, 2)} gal`);\n    if (fmtNum(r.dose_a_ml, 0)) details.push(`A: ${fmtNum(r.dose_a_ml, 0)} mL`);\n    if (fmtNum(r.dose_b_ml, 0)) details.push(`B: ${fmtNum(r.dose_b_ml, 0)} mL`);\n    if (fmtNum(r.tds_voltage, 3)) details.push(`TDS: ${fmtNum(r.tds_voltage, 3)} V`);\n    if (fmtNum(r.tank_gallons, 1)) details.push(`Tank: ${fmtNum(r.tank_gallons, 1)} gal`);\n\n    let line = `### #${r.source_id} — ${r.event_type || \"EVENT\"}\\n`;\n    line += `**${fmtDate(r.activity_time)}**`;\n    if (r.source) line += ` · ${r.source}`;\n    line += `\\n\\n`;\n\n    if (details.length) {\n        line += details.join(\" · \") + \"\\n\\n\";\n    }\n\n    if (r.note) {\n        line += `${String(r.note).slice(0, 240)}\\n`;\n    }\n\n    return line;\n});\n\nconst activityText = lines.join(\"\\n---\\n\");\n\nmsg.payload = JSON.stringify({\n    state: \"ok\",\n    activity_text: activityText,\n    updated_at: new Date().toISOString()\n});\n\nreturn msg;",
+        "name": "Format Recent Activity",
+        "func": "const rows = Array.isArray(msg.payload) ? msg.payload : [];\n\nfunction fmtNum(v, decimals) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(decimals) : null;\n}\n\nfunction fmtDate(v) {\n    if (!v) return \"\";\n\n    const d = new Date(v);\n    if (Number.isNaN(d.getTime())) return String(v);\n\n    return d.toLocaleString(\"en-US\", {\n        weekday: \"short\",\n        month: \"short\",\n        day: \"numeric\",\n        hour: \"numeric\",\n        minute: \"2-digit\",\n        hour12: true\n    });\n}\n\nfunction buildDetails(r, withColons = false) {\n    const details = [];\n    const sep = withColons ? \": \" : \" \";\n\n    if (fmtNum(r.fill_gallons, 2)) details.push(`Fill${sep}${fmtNum(r.fill_gallons, 2)} gal`);\n    if (fmtNum(r.dose_a_ml, 0)) details.push(`A${sep}${fmtNum(r.dose_a_ml, 0)} mL`);\n    if (fmtNum(r.dose_b_ml, 0)) details.push(`B${sep}${fmtNum(r.dose_b_ml, 0)} mL`);\n    if (fmtNum(r.tds_voltage, 3)) details.push(`TDS${sep}${fmtNum(r.tds_voltage, 3)} V`);\n    if (fmtNum(r.tank_gallons, 1)) details.push(`Tank${sep}${fmtNum(r.tank_gallons, 1)} gal`);\n    if (fmtNum(r.water_temp_f, 1)) details.push(`Temp${sep}${fmtNum(r.water_temp_f, 1)} °F`);\n\n    return details;\n}\n\nconst records = rows.map(r => {\n    const title = `#${r.source_id} — ${r.event_type || \"EVENT\"}`;\n    const details = buildDetails(r, false);\n\n    let label = fmtDate(r.activity_time);\n    if (r.source) label += ` · ${r.source}`;\n    if (details.length) label += `\\n${details.join(\" · \")}`;\n    if (r.note) label += `\\n${String(r.note).slice(0, 240)}`;\n    if (r.operator_note) label += `\\nOperator Note: ${String(r.operator_note).slice(0, 240)}`;\n\n    return {\n        ...r,\n        card_title: title,\n        card_label: label,\n        select_id: `${r.activity_source}:${r.source_id}`\n    };\n});\n\nconst lines = records.map(r => {\n    const details = buildDetails(r, true);\n\n    let line = `### ${r.card_title}\\n`;\n    line += `**${fmtDate(r.activity_time)}**`;\n    if (r.source) line += ` · ${r.source}`;\n    line += `\\n\\n`;\n\n    if (details.length) {\n        line += details.join(\" · \") + \"\\n\\n\";\n    }\n\n    if (r.note) {\n        line += `${String(r.note).slice(0, 240)}\\n`;\n    }\n\n    if (r.operator_note) {\n        line += `\\n**Operator Note:** ${String(r.operator_note).slice(0, 240)}\\n`;\n    }\n\n    return line;\n});\n\nmsg.payload = JSON.stringify({\n    state: \"ok\",\n    activity_text: lines.join(\"\\n---\\n\"),\n    records,\n    updated_at: new Date().toISOString()\n});\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 1390,
+        "x": 1360,
         "y": 1720,
         "wires": [
             [
@@ -300,8 +300,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 780,
-        "y": 1600,
+        "x": 740,
+        "y": 1640,
         "wires": []
     },
     {
@@ -376,7 +376,7 @@
         "enableGlobalContextStore": true
     },
     {
-        "id": "97e0aa452d1238c3",
+        "id": "40c68a7b26325aa7",
         "type": "global-config",
         "env": [],
         "modules": {

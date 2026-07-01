@@ -1,0 +1,261 @@
+[
+    {
+        "id": "08c9371ae187cd53",
+        "type": "server-state-changed",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Save Field Note",
+        "server": "28f1afb.2a0725",
+        "version": 6,
+        "outputs": 1,
+        "exposeAsEntityConfig": "",
+        "entities": {
+            "entity": [
+                "input_button.hydro_history_create_field_note"
+            ],
+            "substring": [],
+            "regex": []
+        },
+        "outputInitially": false,
+        "stateType": "str",
+        "ifState": "",
+        "ifStateType": "str",
+        "ifStateOperator": "is",
+        "outputOnlyOnStateChange": true,
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "ignorePrevStateNull": true,
+        "ignorePrevStateUnknown": true,
+        "ignorePrevStateUnavailable": true,
+        "ignoreCurrentStateUnknown": false,
+        "ignoreCurrentStateUnavailable": false,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "eventData"
+            }
+        ],
+        "x": 100,
+        "y": 2400,
+        "wires": [
+            [
+                "hydro_history_get_field_note"
+            ]
+        ]
+    },
+    {
+        "id": "hydro_history_get_field_note",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get Field Note",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "input_text.hydro_history_field_note",
+        "state_type": "str",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "field_note",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 320,
+        "y": 2400,
+        "wires": [
+            [
+                "bed34043b72f993d"
+            ]
+        ]
+    },
+    {
+        "id": "bed34043b72f993d",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Build Field Note INSERT SQL",
+        "func": "const note = String(msg.field_note ?? \"\").trim();\nconst noteDate = String(msg.field_note_date ?? \"\").trim();\nconst location = String(msg.location ?? \"patio\").trim();\n\nfunction sqlText(value) {\n    if (value === undefined || value === null) return \"NULL\";\n    const s = String(value).trim();\n    if (s.length === 0) return \"NULL\";\n    return \"'\" + s.replace(/'/g, \"''\").slice(0, 255) + \"'\";\n}\n\nif (!note) {\n    node.error(\"Field note save failed: note is empty\", msg);\n    return null;\n}\n\n// -----------------------------------------------------------------------------\n// Determine timestamps\n// -----------------------------------------------------------------------------\n\nconst now = new Date();\n\nconst today =\n    now.getFullYear() + \"-\" +\n    String(now.getMonth() + 1).padStart(2, \"0\") + \"-\" +\n    String(now.getDate()).padStart(2, \"0\");\n\nlet internalTimeSql;\nlet utcTimeSql;\n\nif (!noteDate || noteDate === today) {\n\n    // Current note\n    internalTimeSql = \"NOW()\";\n    utcTimeSql = \"UTC_TIMESTAMP()\";\n\n}\nelse if (noteDate < today) {\n\n    // Historical note\n    internalTimeSql = `TIMESTAMP('${noteDate}', TIME(NOW()))`;\n    utcTimeSql = `DATE_ADD(TIMESTAMP('${noteDate}', TIME(NOW())), INTERVAL 5 HOUR)`;\n\n}\nelse {\n\n    node.error(\"Field note date cannot be in the future.\", msg);\n    return null;\n\n}\n\n// -----------------------------------------------------------------------------\n// Build INSERT\n// -----------------------------------------------------------------------------\n\nmsg.topic = `\nINSERT INTO maintenance_log\n(\n    timestamp_utc,\n    internal_time,\n    source,\n    location,\n    device,\n    event_type,\n    mode,\n    note\n)\nVALUES\n(\n    ${utcTimeSql},\n    ${internalTimeSql},\n    'outside',\n    ${sqlText(location)},\n    'home_assistant',\n    'NOTE',\n    'manual',\n    ${sqlText(note)}\n);\n`;\n\nmsg.payload = {\n    source: \"outside\",\n    location,\n    device: \"home_assistant\",\n    event_type: \"NOTE\",\n    mode: \"manual\",\n    note,\n    field_note_date: noteDate\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 570,
+        "y": 2400,
+        "wires": [
+            [
+                "hydro_history_field_note_sql_preview",
+                "hydro_history_insert_field_note"
+            ]
+        ]
+    },
+    {
+        "id": "hydro_history_field_note_sql_preview",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Field Note SQL Preview",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "topic",
+        "targetType": "msg",
+        "x": 890,
+        "y": 2360,
+        "wires": []
+    },
+    {
+        "id": "hydro_history_insert_field_note",
+        "type": "mysql",
+        "z": "3ec2ad8e53afdcdc",
+        "mydb": "mysql_logbook_placeholder",
+        "name": "Insert Field Note",
+        "x": 860,
+        "y": 2440,
+        "wires": [
+            [
+                "hydro_history_field_note_insert_result",
+                "hydro_history_clear_field_note"
+            ]
+        ]
+    },
+    {
+        "id": "hydro_history_field_note_insert_result",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Field Note Insert Result",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 1150,
+        "y": 2400,
+        "wires": []
+    },
+    {
+        "id": "hydro_history_clear_field_note",
+        "type": "api-call-service",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Clear Field Note",
+        "server": "28f1afb.2a0725",
+        "version": 7,
+        "debugenabled": false,
+        "action": "input_text.set_value",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [],
+        "labelId": [],
+        "data": "{\"entity_id\":\"input_text.hydro_history_field_note\",\"value\":\"\"}",
+        "dataType": "json",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": false,
+        "domain": "input_text",
+        "service": "set_value",
+        "x": 1130,
+        "y": 2480,
+        "wires": [
+            [
+                "hydro_history_refresh_after_field_note"
+            ]
+        ]
+    },
+    {
+        "id": "hydro_history_refresh_after_field_note",
+        "type": "api-call-service",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Refresh History Browser",
+        "server": "28f1afb.2a0725",
+        "version": 7,
+        "debugenabled": false,
+        "action": "script.hydro_history_refresh",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [],
+        "labelId": [],
+        "data": "{}",
+        "dataType": "json",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": false,
+        "domain": "script",
+        "service": "hydro_history_refresh",
+        "x": 1430,
+        "y": 2480,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "28f1afb.2a0725",
+        "type": "server",
+        "name": "Home Assistant",
+        "version": 6,
+        "addon": true,
+        "rejectUnauthorizedCerts": true,
+        "ha_boolean": [
+            "y",
+            "yes",
+            "true",
+            "on",
+            "home",
+            "open"
+        ],
+        "connectionDelay": true,
+        "cacheJson": true,
+        "heartbeat": false,
+        "heartbeatInterval": 30,
+        "areaSelector": "friendlyName",
+        "deviceSelector": "friendlyName",
+        "entitySelector": "friendlyName",
+        "statusSeparator": "at: ",
+        "statusYear": "hidden",
+        "statusMonth": "short",
+        "statusDay": "numeric",
+        "statusHourCycle": "h23",
+        "statusTimeFormat": "h:m",
+        "enableGlobalContextStore": true
+    },
+    {
+        "id": "mysql_logbook_placeholder",
+        "type": "MySQLdatabase",
+        "name": "MariaDB logbook",
+        "host": "core-mariadb",
+        "port": "3306",
+        "db": "logbook",
+        "tz": "",
+        "charset": "UTF8"
+    },
+    {
+        "id": "439c842baadb4d11",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-home-assistant-websocket": "0.80.3",
+            "node-red-node-mysql": "3.0.0"
+        }
+    }
+]

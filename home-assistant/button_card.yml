@@ -1,0 +1,69 @@
+type: custom:button-card
+show_icon: false
+show_label: true
+show_state: false
+name: |
+  [[[
+    const r = states['sensor.hydro_recent_activity_text'].attributes.records?.[2];
+    return r ? `#${r.source_id} — ${r.event_type}` : 'No record';
+  ]]]
+label: |
+  [[[
+    const r = states['sensor.hydro_recent_activity_text'].attributes.records?.[2];
+    if (!r) return '';
+
+    const d = new Date(r.activity_time);
+    const when = isNaN(d.getTime())
+      ? r.activity_time
+      : d.toLocaleString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true
+        });
+
+    const details = [];
+    if (Number(r.fill_gallons)) details.push(`Fill ${Number(r.fill_gallons).toFixed(2)} gal`);
+    if (Number(r.dose_a_ml)) details.push(`A ${Number(r.dose_a_ml).toFixed(0)} mL`);
+    if (Number(r.dose_b_ml)) details.push(`B ${Number(r.dose_b_ml).toFixed(0)} mL`);
+    if (Number(r.tds_voltage)) details.push(`TDS ${Number(r.tds_voltage).toFixed(3)} V`);
+    if (Number(r.tank_gallons)) details.push(`Tank ${Number(r.tank_gallons).toFixed(1)} gal`);
+    if (Number(r.water_temp_f)) details.push(`Temp ${Number(r.water_temp_f).toFixed(1)} °F`);
+
+    const opNote = r.operator_note
+      ? `\nOperator Note: ${r.operator_note}`
+      : '';
+
+    return `${when} · ${r.source || ''}\n${details.join(' · ')}\n${r.note || ''}${opNote}`;
+  ]]]
+tap_action:
+  action: call-service
+  service: input_text.set_value
+  target:
+    entity_id: input_text.hydro_history_selected_event_id
+  data:
+    value: |
+      [[[
+        const r = states['sensor.hydro_recent_activity_text'].attributes.records?.[2];
+        return r ? String(r.source_id) : '';
+      ]]]
+styles:
+  card:
+    - min-height: 125px
+    - padding: 12px
+  grid:
+    - grid-template-areas: "\"n\" \"l\""
+    - grid-template-columns: 1fr
+    - grid-template-rows: min-content 1fr
+  name:
+    - justify-self: start
+    - font-size: 18px
+    - font-weight: bold
+  label:
+    - justify-self: start
+    - text-align: left
+    - white-space: pre-line
+    - font-size: 14px
+    - line-height: 1.35

@@ -1,7 +1,7 @@
 # Hydroponics Database Design
 
-**Revision:** 0.2
-**Last Updated:** 2026-06-28
+**Revision:** 0.3
+**Last Updated:** 2026-07-01
 **Status:** Active Reference / Partial Implementation
 
 ---
@@ -26,6 +26,25 @@ Workflow implementation details belong in:
 * `node-red/README.md`
 * `home-assistant/packages/README.md`
 * `docs/04-dashboard-history-design.md`
+
+---
+
+# Timestamp Standard
+
+All operational timestamps in the Hydroponics database are stored in **local system time**.
+
+The system is designed for a single physical installation and all history is viewed by the local operator.
+
+Reasons:
+
+- Simplifies SQL queries (`TODAY`, `THIS WEEK`, etc.)
+- Dashboard times match the database without conversion
+- Correlates directly with maintenance activities, photographs, weather, and inspection notes
+- Eliminates unnecessary timezone conversions
+
+UTC timestamps are not used within the Hydroponics database.
+
+If cloud synchronization or multi-site support is implemented in the future, UTC conversion will occur during export rather than storage.
 
 ---
 
@@ -117,8 +136,8 @@ Workflow implementation details belong in:
 | Column             | Type               | Notes                                                           |
 | ------------------ | ------------------ | --------------------------------------------------------------- |
 | `id`               | int auto_increment | Primary key                                                     |
-| `timestamp_utc`    | datetime           | Event time                                                      |
-| `internal_time`    | datetime           | Local/internal time                                             |
+| `timestamp_utc`    | datetime           | UTC event timestamp (legacy compatibility; not used for dashboard readback) |
+| `internal_time`    | datetime           | Local event timestamp used by dashboards and history views       |
 | `source`           | varchar(32)        | Usually `outside`                                               |
 | `location`         | varchar(64)        | Usually `patio`                                                 |
 | `crop`             | varchar(32)        | Legacy / future crop context                                    |
@@ -202,17 +221,18 @@ Fill wasted due to broken recirculating pump hose clamp. Nutrients discharged on
 
 ### Columns
 
-| Column          | Type                  | Notes                          |
-| --------------- | --------------------- | ------------------------------ |
-| `id`            | bigint auto_increment | Primary key                    |
-| `captured_at`   | datetime              | Reading time                   |
-| `system_key`    | varchar(50)           | Default `outside`              |
-| `probe_voltage` | decimal(6,3)          | Installed probe voltage        |
-| `meter_value`   | decimal(8,2)          | Handheld meter reading         |
-| `meter_units`   | varchar(20)           | Usually `EC`                   |
-| `tank_gallons`  | decimal(8,2)          | Tank gallons at reading        |
-| `water_temp_f`  | decimal(6,2)          | Water temperature if available |
-| `note`          | varchar(255)          | Operator note                  |
+| Column          | Type                  | Notes                                               |
+| --------------- | --------------------- | --------------------------------------------------- |
+| `id`            | bigint auto_increment | Primary key                                         |
+| `captured_at`   | datetime              | Local reading timestamp                             |
+| `system_key`    | varchar(50)           | Default `outside`                                   |
+| `probe_voltage` | decimal(6,3)          | Installed probe voltage                             |
+| `meter_value`   | decimal(8,2)          | Handheld meter reading                              |
+| `meter_units`   | varchar(20)           | Usually `EC`                                        |
+| `tank_gallons`  | decimal(8,2)          | Tank gallons at reading                             |
+| `water_temp_f`  | decimal(6,2)          | Water temperature at reading, if available          |
+| `note`          | varchar(255)          | Original EC reference note entered with the reading |
+| `operator_note` | varchar(255)          | Later annotation added from the Hydro-History app   |
 
 ### Indexes
 
@@ -662,6 +682,8 @@ Views should not be treated as source data. Source data belongs in the base tabl
 
 This view is the current readback source for recent fill, dose, and EC reference activity.
 
+For `maintenance_log`, `activity_time` is sourced from `internal_time` to provide local operator time.
+
 ---
 
 ## Inventory Views
@@ -753,6 +775,8 @@ Current priorities are:
 
 # Revision History
 
-| Date       | Revision | Description                                                                                                                                                                                                                                                                  |
-| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Date       | Revision | Description                                                                                                                                                                                                                                                                      |
+| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-01 | 0.3 | Added `water_temp_f` and `operator_note` to `hydro_tds_reference_reading`. Updated Hydro-History design to support annotations on EC reference records and unified history browsing across multiple activity sources. |
+| 2026-07-01 | 0.3      | Added Hydro-History browser support, documented operator notes, clarified the project timestamp standard, updated `v_hydro_recent_activity` to use local event time for dashboard readback, and corrected timestamp documentation for production workflows. |
 | 2026-06-28 | 0.2      | Reorganized the document into a database reference. Added object inventory, table documentation, views, workflow ownership, and development priorities. Updated to reflect `maintenance_log` as the production event table after retirement of `hydroponics_outside_events`. |

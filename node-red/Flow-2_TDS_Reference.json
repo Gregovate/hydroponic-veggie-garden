@@ -338,7 +338,9 @@
         "x": 2430,
         "y": 1560,
         "wires": [
-            []
+            [
+                "49f9f57f5be6257f"
+            ]
         ]
     },
     {
@@ -350,39 +352,74 @@
         "version": 3,
         "outputs": 1,
         "halt_if": "",
-        "halt_if_type": "num",
+        "halt_if_type": "str",
         "halt_if_compare": "is",
         "entity_id": "sensor.hydroponics_patio_esp32_tank_temp",
         "state_type": "str",
-        "blockInputOverrides": true,
+        "blockInputOverrides": false,
         "outputProperties": [
             {
                 "property": "water_temp_f",
                 "propertyType": "msg",
                 "value": "string",
                 "valueType": "entityState"
-            },
-            {
-                "property": "data",
-                "propertyType": "msg",
-                "value": "",
-                "valueType": "entity"
             }
         ],
-        "for": "0",
+        "for": "",
         "forType": "num",
-        "forUnits": "minutes",
-        "override_topic": false,
-        "state_location": "payload",
-        "override_payload": "msg",
-        "entity_location": "data",
-        "override_data": "msg",
         "x": 1600,
         "y": 1420,
         "wires": [
             [
-                "tds_ref_build_sql"
+                "tds_ref_build_sql",
+                "1e4cbe5be3e11555"
             ]
+        ]
+    },
+    {
+        "id": "1e4cbe5be3e11555",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Tank Temp Check",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1810,
+        "y": 1360,
+        "wires": []
+    },
+    {
+        "id": "49f9f57f5be6257f",
+        "type": "api-call-service",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Refresh History Browser",
+        "server": "28f1afb.2a0725",
+        "version": 7,
+        "debugenabled": false,
+        "action": "script.hydro_history_refresh",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [],
+        "labelId": [],
+        "data": "{}",
+        "dataType": "json",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": false,
+        "domain": "script",
+        "service": "hydro_history_refresh",
+        "x": 2670,
+        "y": 1560,
+        "wires": [
+            []
         ]
     },
     {
@@ -426,7 +463,7 @@
         "charset": "UTF8"
     },
     {
-        "id": "4ca114e5385df2dd",
+        "id": "dd79277a51f3c875",
         "type": "global-config",
         "env": [],
         "modules": {

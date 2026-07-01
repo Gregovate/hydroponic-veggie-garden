@@ -4,7 +4,7 @@
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
         "name": "Add Note to Selected Event",
-        "func": "// Save operator note to existing maintenance_log record.\n\nconst maintenanceLogId = Number(\n    msg.payload?.maintenance_log_id ??\n    msg.payload?.event?.maintenance_log_id ??\n    msg.event?.maintenance_log_id\n);\n\nconst operatorNote = String(\n    msg.payload?.operator_note ??\n    msg.payload?.event?.operator_note ??\n    msg.event?.operator_note ??\n    \"\"\n).trim();\n\nfunction sqlText(value) {\n    if (value === undefined || value === null) return \"NULL\";\n    const s = String(value).trim();\n    if (s.length === 0) return \"NULL\";\n    return \"'\" + s.replace(/'/g, \"''\") + \"'\";\n}\n\nif (!Number.isInteger(maintenanceLogId) || maintenanceLogId <= 0) {\n    node.error(\"Save operator note failed: invalid maintenance_log_id\", msg);\n    return null;\n}\n\nif (!operatorNote) {\n    node.error(\"Save operator note failed: operator note is empty\", msg);\n    return null;\n}\n\nmsg.topic = `\nUPDATE maintenance_log\nSET operator_note = ${sqlText(operatorNote)}\nWHERE id = ${maintenanceLogId};\n`;\n\nmsg.payload = {\n    maintenance_log_id: maintenanceLogId,\n    operator_note: operatorNote\n};\n\nreturn msg;",
+        "func": "// Save operator note to selected Hydro-History activity record.\n\nconst selectedActivity = String(\n    msg.payload?.maintenance_log_id ??\n    msg.payload?.event?.maintenance_log_id ??\n    msg.event?.maintenance_log_id ??\n    \"\"\n).trim();\n\nconst operatorNote = String(\n    msg.payload?.operator_note ??\n    msg.payload?.event?.operator_note ??\n    msg.event?.operator_note ??\n    \"\"\n).trim();\n\nfunction sqlText(value) {\n    if (value === undefined || value === null) return \"NULL\";\n    const s = String(value).trim();\n    if (s.length === 0) return \"NULL\";\n    return \"'\" + s.replace(/'/g, \"''\").slice(0, 255) + \"'\";\n}\n\nif (!selectedActivity.includes(\":\")) {\n    node.error(\"Save operator note failed: selected activity must include source:id\", msg);\n    return null;\n}\n\nconst [activitySource, idText] = selectedActivity.split(\":\");\nconst sourceId = Number(idText);\n\nif (!Number.isInteger(sourceId) || sourceId <= 0) {\n    node.error(\"Save operator note failed: invalid selected activity id\", msg);\n    return null;\n}\n\nif (!operatorNote) {\n    node.error(\"Save operator note failed: operator note is empty\", msg);\n    return null;\n}\n\nif (activitySource === \"maintenance_log\") {\n    msg.topic = `\nUPDATE maintenance_log\nSET operator_note = ${sqlText(operatorNote)}\nWHERE id = ${sourceId};\n`;\n} else if (activitySource === \"ec_reference\") {\n    msg.topic = `\nUPDATE hydro_tds_reference_reading\nSET operator_note = ${sqlText(operatorNote)}\nWHERE id = ${sourceId};\n`;\n} else {\n    node.error(`Save operator note failed: unsupported activity source ${activitySource}`, msg);\n    return null;\n}\n\nmsg.payload = {\n    activity_source: activitySource,\n    source_id: sourceId,\n    operator_note: operatorNote\n};\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -33,8 +33,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 1460,
-        "y": 2060,
+        "x": 1380,
+        "y": 2040,
         "wires": []
     },
     {
@@ -43,12 +43,12 @@
         "z": "3ec2ad8e53afdcdc",
         "mydb": "mysql_logbook_placeholder",
         "name": "Update Operator Note",
-        "x": 1440,
+        "x": 1360,
         "y": 2120,
         "wires": [
             [
                 "hydro_history_update_note_result",
-                "hydro_history_refresh_after_note"
+                "hydro_history_clear_selected_note_fields"
             ]
         ]
     },
@@ -65,8 +65,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 1780,
-        "y": 2060,
+        "x": 1680,
+        "y": 2040,
         "wires": []
     },
     {
@@ -92,7 +92,7 @@
         "blockInputOverrides": false,
         "domain": "script",
         "service": "hydro_history_refresh",
-        "x": 1770,
+        "x": 2070,
         "y": 2120,
         "wires": [
             []
@@ -230,6 +230,62 @@
         ]
     },
     {
+        "id": "hydro_history_clear_selected_note_fields",
+        "type": "api-call-service",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Clear Selected Note Fields",
+        "server": "28f1afb.2a0725",
+        "version": 7,
+        "debugenabled": false,
+        "action": "input_text.set_value",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [],
+        "labelId": [],
+        "data": "{\"entity_id\":[\"input_text.hydro_history_selected_event_id\",\"input_text.hydro_history_operator_note\"],\"value\":\"\"}",
+        "dataType": "json",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": false,
+        "domain": "input_text",
+        "service": "set_value",
+        "x": 1640,
+        "y": 2120,
+        "wires": [
+            [
+                "5deee87676139b43"
+            ]
+        ]
+    },
+    {
+        "id": "5deee87676139b43",
+        "type": "delay",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "1",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1860,
+        "y": 2120,
+        "wires": [
+            [
+                "hydro_history_refresh_after_note"
+            ]
+        ]
+    },
+    {
         "id": "mysql_logbook_placeholder",
         "type": "MySQLdatabase",
         "name": "MariaDB logbook",
@@ -270,7 +326,7 @@
         "enableGlobalContextStore": true
     },
     {
-        "id": "7ec9a2eb7fe25954",
+        "id": "4f031955533786b5",
         "type": "global-config",
         "env": [],
         "modules": {
