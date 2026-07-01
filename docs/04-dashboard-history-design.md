@@ -158,9 +158,9 @@ The Hydro-History dashboard is being implemented in stages.
 
 ## Phase 1 — Database Connectivity
 
-- Verify Home Assistant connectivity to MariaDB.
-- Verify `v_hydro_recent_activity` can be queried.
-- Verify Node-RED can retrieve and format recent activity.
+* Verify Home Assistant connectivity to MariaDB.
+* Verify `v_hydro_recent_activity` can be queried.
+* Verify Node-RED can retrieve and format recent activity.
 
 Status: ✅ Complete
 
@@ -168,22 +168,22 @@ Status: ✅ Complete
 
 ## Phase 2 — History Browser
 
-- Display recent activity in Home Assistant.
-- Browse newer and older history.
-- Select an event.
-- Display complete event details.
+* Display recent activity in Home Assistant.
+* Browse newer and older history.
+* Select an event.
+* Display complete event details.
 
 
 ## Phase 2a — Event Selection
 
-- Browse recent history
-- Page forward/back through history
-- Step forward/back one record
-- Select a source-aware activity record
-- Populate operator editing controls
-- Edit existing operator notes
-- Save annotation back to the correct source table
-- Automatically refresh the browser after save
+* Browse recent history
+* Page forward/back through history
+* Step forward/back one record
+* Select a source-aware activity record
+* Populate operator editing controls
+* Edit existing operator notes
+* Save annotation back to the correct source table
+* Automatically refresh the browser after save
   
 Status: ✅ Complete
 
@@ -193,13 +193,13 @@ Status: ✅ Complete
 
 Selected events may initiate workflows such as:
 
-- Create standalone field note
-- Optional field note date override
-- Field note location/area context
-- Equipment issue workflow
-- Maintenance completed workflow
-- Event detail popup (optional)
-
+* Create standalone field note
+* Optional field note date override
+* Field note location/area context
+* Equipment issue workflow
+* Maintenance completed workflow
+* Event detail popup (optional)
+  
 Status: 🚧 Partial (Field Notes complete; additional workflows pending)
 
 ---

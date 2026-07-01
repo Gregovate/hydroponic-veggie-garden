@@ -31,7 +31,7 @@ fp-lib-table.bak
 # Local credentials (never commit)
 # -----------------------------------------------------------------------------
 secrets.yaml
-credentials-local.md
+credentials/
 docs/credentials-local.md
 *.env
 .env*

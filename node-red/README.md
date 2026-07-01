@@ -1,4 +1,4 @@
-# Node-RED Flows
+# # Hydroponics Node-RED Workflows
 
 Node-RED performs workflow logic for the hydroponics system.
 
