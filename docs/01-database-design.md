@@ -780,3 +780,11 @@ Current priorities are:
 | 2026-07-01 | 0.3 | Added `water_temp_f` and `operator_note` to `hydro_tds_reference_reading`. Updated Hydro-History design to support annotations on EC reference records and unified history browsing across multiple activity sources. |
 | 2026-07-01 | 0.3      | Added Hydro-History browser support, documented operator notes, clarified the project timestamp standard, updated `v_hydro_recent_activity` to use local event time for dashboard readback, and corrected timestamp documentation for production workflows. |
 | 2026-06-28 | 0.2      | Reorganized the document into a database reference. Added object inventory, table documentation, views, workflow ownership, and development priorities. Updated to reflect `maintenance_log` as the production event table after retirement of `hydroponics_outside_events`. |
+
+---
+
+## Navigation
+
+**Previous:** [00 – System Overview](00-system-overview.md)
+
+**Next:** [02 – Season & Layout](02-season-and-layout.md)

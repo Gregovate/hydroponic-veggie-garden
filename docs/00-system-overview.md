@@ -190,17 +190,20 @@ This document provides the overall project overview.
 
 Additional documentation describes specific portions of the system.
 
-| Document                                | Description                                  |
-| --------------------------------------- | -------------------------------------------- |
-| 01-database-design.md                   | Database schema and design philosophy        |
-| 02-season-and-layout.md                 | Seasonal crop layouts and planting locations |
-| 03-harvest-and-waste-tracking.md        | Harvest and production tracking              |
-| 04-dashboard-history-design.md          | Dashboard history and reporting concepts     |
-| esp_32_controller_readme.md             | ESP32 hardware controller                    |
-| calibration-process-hx711.md            | Load cell calibration procedure              |
-| nutrient_dosing_automation.md           | Automatic nutrient dosing                    |
-| nutrient-monitoring-and-flow-alarms.md  | Flow monitoring and alarm logic              |
-| hydroponics-nutrient-solution-mixing.md | Stock solution preparation                   |
+| Document | Description |
+|----------|-------------|
+| [01 – Database Design](01-database-design.md) | Database schema, normalization, and engineering philosophy. |
+| [02 – Season & Layout](02-season-and-layout.md) | Seasonal crop layouts and planting locations. |
+| [03 – Harvest & Waste Tracking](03-harvest-and-waste-tracking.md) | Harvest recording, waste tracking, and production analysis. |
+| [04 – Dashboard & History Design](04-dashboard-history-design.md) | Dashboard philosophy, Hydro-History, and operator workflows. |
+| 05 – Nutrient Management & EC Control *(In Development)* | Automatic nutrient management, EC control strategy, and dosing workflows. |
+| 06 – Monitoring & Notification System *(Planned)* | System monitoring, alarms, and notification strategy. |
+| 07 – Nutrient Inventory Management *(Planned)* | Dry inventory, stock solution inventory, and batch management. |
+| [ESP32 Controller](hardware/esp_32_controller_readme.md) | ESP32 controller hardware and firmware overview. |
+| [HX711 Calibration](hardware/calibration-process-hx711.md) | Tank calibration procedure using Home Assistant interpolation. |
+| [Alternate Pressure Sensor](hardware/alternate-pressure-sensor.md) | Alternative tank level sensing using a pressure transducer. |
+| [Voltage Divider Reference](hardware/voltage_divider_explained.md) | Analog input protection and voltage divider design. |
+| [Nutrient Solution Mixing SOP](sop/hydroponics-nutrient-solution-mixing.md) | Printable procedure for preparing Part A and Part B stock solutions. |
 
 ---
 
@@ -209,3 +212,15 @@ Additional documentation describes specific portions of the system.
 | Date       | Revision | Description                                                                                                                     |
 | ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-06-28 | 1.0      | Initial system overview documenting the transition from a controller project to a complete hydroponic crop management platform. |
+
+---
+
+## Navigation
+
+**Next:** [01 – Database Design](01-database-design.md)
+
+**Related:**
+
+- [ESP32 Controller](hardware/esp_32_controller_readme.md)
+- [HX711 Calibration](hardware/calibration-process-hx711.md)
+- [Nutrient Solution Mixing SOP](sop/hydroponics-nutrient-solution-mixing.md)
