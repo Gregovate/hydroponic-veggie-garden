@@ -44,6 +44,18 @@ Each layer has a well-defined responsibility.
 
 ---
 
+# Standard Operating Procedures (SOP)
+
+Routine operating procedures are located in:
+
+`docs/sop/`
+
+| Procedure | Markdown | Printable PDF |
+|----------|:--------:|:-------------:|
+| Nutrient Solution Mixing | [View](docs/sop/hydroponics-nutrient-solution-mixing.md) | [PDF](docs/sop/hydroponics-nutrient-solution-mixing.pdf) |
+
+---
+
 # Engineering Documentation
 
 The engineering manual is located in the **docs** folder.
