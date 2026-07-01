@@ -1,8 +1,8 @@
 # Home Assistant Packages
 
-**Project:** Hydroponics Veggie Garden
-**Author:** Greg Liebig
-**Last Updated:** 2026-06-28
+**Revision:** 1.1
+**Last Updated:** 2026-07-01
+**Status:** Production
 
 ---
 
@@ -29,23 +29,30 @@ Home Assistant acts as the interface between the operator, the ESPHome controlle
 # System Architecture
 
 ```text
-                 Operator
-                     │
-                     ▼
-        Home Assistant Dashboard
-                     │
-      ┌──────────────┴──────────────┐
-      │                             │
-Helper Entities                 Node-RED
-Scripts & SQL Sensors      Workflow Automation
-      │                             │
-      └──────────────┬──────────────┘
-                     │
-              ESPHome Controller
-                     │
+                    Operator
+                        │
+                        ▼
+             Home Assistant Dashboard
+                        │
+        ┌───────────────┼───────────────┐
+        │               │               │
+        ▼               ▼               ▼
+   Helper Entities   Scripts/UI     SQL Sensors
+        │               │               │
+        └───────────────┼───────────────┘
+                        │
+                        ▼
+                   Node-RED
+                Workflow Engine
+                        │
+                        ▼
+                    MariaDB
+                        ▲
+                        │
+                  ESPHome Controller
+                        │
+                        ▼
                  Physical Hardware
-
-MariaDB provides permanent history and inventory storage for both Home Assistant and Node-RED.
 ```
 
 ---
@@ -70,50 +77,94 @@ MariaDB provides permanent history and inventory storage for both Home Assistant
 
 # Package Inventory
 
-| Package                        | Purpose                                                              | Status       |
-| ------------------------------ | -------------------------------------------------------------------- | ------------ |
-| `patio_controller.yaml`        | Primary controller helpers, scripts, sensors and dashboard entities. | ✅ Production |
-| `patio_dosing_controls.yaml`   | Nutrient dosing controls and Measure EC workflow support.            | ✅ Production |
-| `patio_system_constants.yaml`  | Shared constants for the outdoor hydroponics system.                 | ✅ Production |
-| `patio_energy_monitoring.yaml` | Electrical monitoring and power usage.                               | ✅ Production |
-| `global_constants.yaml`        | Shared constants used by multiple packages.                          | ✅ Production |
-| `db_connect.yaml`              | SQL integration and database connection configuration.               | ✅ Production |
-| `batch_building.yaml`          | Helper entities for nutrient batch creation.                         | 🚧 Partial   |
-| `harvest_inputs.yaml`          | Helper entities for harvest entry workflows.                         | 🚧 Partial   |
-| `obsolete/`                    | Historical package versions retained for reference only.             | ❌ Legacy     |
+| Package | Purpose | Status |
+|---------|---------|:------:|
+| `global_constants.yaml` | Shared constants used throughout the Home Assistant packages. | ✅ Production |
+| `patio_system_constants.yaml` | Outdoor hydroponics system configuration and operating constants. | ✅ Production |
+| `patio_controller.yaml` | Primary controller helpers, scripts, template sensors, and dashboard entities. | ✅ Production |
+| `patio_dosing_controls.yaml` | Nutrient dosing controls, automatic dosing helpers, and Measure EC workflow support. | ✅ Production |
+| `patio_energy_monitoring.yaml` | Electrical monitoring and power consumption. | ✅ Production |
+| `db_connect.yaml` | SQL integration and MariaDB connection configuration. | ✅ Production |
+| `db_history_dashboard.yaml` | Hydro-History dashboard entities and browser support. | ✅ Production |
+| `batch_building.yaml` | Helper entities for nutrient batch creation and inventory workflows. | 🚧 Partial |
+| `harvest_inputs.yaml` | Helper entities for seasonal harvest and waste workflows. | 🚧 Partial |
+| `obsolete/` | Historical package versions retained for reference only. | ❌ Legacy |
 
 ---
 
 # Responsibilities
 
-Home Assistant is responsible for:
+Home Assistant serves as the supervisory control system and primary operator interface for the hydroponic vegetable garden.
 
-## Dashboard Interface
+Its responsibilities include:
 
-* System monitoring
+---
+
+## Operator Interface
+
+Provide the primary interface for day-to-day operation.
+
+Examples:
+
+* System status dashboards
 * Controller mode selection
 * Manual controls
-* Fill and dose status
+* Dashboard workflows
+* Notifications
+* System configuration
 * System health
-* Recent activity
-* Event details and annotations
-* Operator field notes
-* EC reference entry
-* Inventory status
-* Future harvest management
+
+---
+
+## Monitoring
+
+Display current operating conditions.
+
+Examples:
+
+* Reservoir volume
+* Probe voltage
+* Estimated EC
+* Water temperature
+* Flow rates
+* Fill status
+* Dosing status
+* Controller status
+* Energy monitoring
+
+---
+
+## Operator Workflows
+
+Provide user entry points into production workflows.
+
+Current workflows include:
+
+* Measure EC
+* Hydro-History Browser
+* Event annotation
+* Standalone field notes
+
+Planned workflows include:
+
+* Nutrient batch creation
+* Inventory updates
+* Harvest entry
+* Waste entry
 
 ---
 
 ## Helper Entities
 
-Home Assistant helper entities provide configurable values without modifying ESPHome firmware.
+Provide configurable values without modifying ESPHome firmware.
 
 Examples include:
 
-* Control mode
+* Controller mode
 * HX711 calibration points
-* Target EC/TDS
+* Target EC
 * Fill thresholds
+* Dashboard state
 * Batch helper values
 * Harvest helper values
 
@@ -121,9 +172,9 @@ Examples include:
 
 ## Scripts
 
-Scripts provide reusable dashboard actions and workflow entry points.
+Provide reusable dashboard actions.
 
-Examples:
+Examples include:
 
 * Measure EC
 * Event annotation
@@ -135,11 +186,11 @@ Examples:
 
 ## SQL Integration
 
-SQL sensors retrieve historical information from MariaDB for display on dashboards.
+Retrieve historical information from MariaDB for dashboard presentation.
 
-Examples:
+Examples include:
 
-* Recent maintenance activity
+* Recent activity
 * Inventory status
 * Event details
 * Production statistics
@@ -149,15 +200,18 @@ Examples:
 
 ## Node-RED Integration
 
-Home Assistant provides the operator interface and helper values used by Node-RED.
+Provide helper entities and workflow entry points used by Node-RED.
 
 Examples include:
 
-* Control Mode
-* Measure EC workflow
-* Manual workflow triggers
+* Control mode
+* Dashboard workflow triggers
+* Measure EC
+* History Browser
+* Batch building
+* Harvest entry
 
-Node-RED executes workflow logic and writes permanent records to MariaDB.
+Node-RED executes workflow automation and writes permanent records to MariaDB.
 
 ---
 
@@ -169,28 +223,49 @@ Some automations currently remain in the Home Assistant UI for:
 * Trace debugging
 * Experimental workflows
 
-Production automations should be migrated into package YAML whenever practical.
+Production automations should be migrated into package YAML or Node-RED whenever practical.
 
 ---
 
-# Documentation Rules
+# Documentation Maintenance
 
-Update this README whenever changes affect:
+This README describes the current Home Assistant package architecture.
 
-* Package organization
-* Helper entities
-* Scripts
-* SQL sensors
-* Dashboard workflows
-* Node-RED integration
-* Production automations
+Update this document whenever changes affect:
 
-Visual dashboard layout changes do not require updates unless they change workflow behavior.
+- Package organization
+- Package responsibilities
+- Helper entities
+- Dashboard workflows
+- SQL sensors
+- Node-RED integration
+- Production automations
+- Package dependencies
+- System ownership
+
+Routine dashboard layout or cosmetic UI changes do not require updates unless they change system behavior or operator workflows.
 
 ---
 
-# Change Log
+# Revision History
 
-| Date       | Description                                                                                                                                                 |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-06-28 | Initial Home Assistant package architecture documentation. Established package inventory, system ownership, responsibilities, and documentation guidelines. |
+| Date | Revision | Description |
+|------|:--------:|-------------|
+| 2026-07-01 | 1.1 | Updated package inventory, added Hydro-History package, revised responsibilities, added navigation, and synchronized documentation with the current repository structure. |
+| 2026-06-28 | 1.0 | Initial Home Assistant package architecture documentation. |
+
+---
+
+# Navigation
+
+## Engineering Manual
+
+- [System Overview](../../docs/00-system-overview.md)
+- [Database Design](../../docs/01-database-design.md)
+- [Dashboard & History Design](../../docs/04-dashboard-history-design.md)
+
+## Component Documentation
+
+- [ESPHome](../../esphome/README.md)
+- [Node-RED](../../node-red/README.md)
+- [SQL](../../sql/README.md)

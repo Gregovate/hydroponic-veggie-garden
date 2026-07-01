@@ -369,3 +369,22 @@ Direct database access should rarely be necessary outside of engineering, develo
 | ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 2026-07-01 | 0.3 | Added Hydro-History browser enhancements including source-aware activity selection, operator notes for both maintenance and EC reference records, standalone field notes with optional date/location context, EC reference water temperature display, and updated workflow documentation. |
 | 2026-06-28 | 0.2      | Reorganized document around dashboard functionality, operator workflows, event history, and long-term design. Removed implementation details that are documented in the Node-RED and Home Assistant READMEs. |
+
+---
+
+# Navigation
+
+**Previous**
+
+- [03 – Harvest & Waste Tracking](03-harvest-and-waste-tracking.md)
+
+**Next**
+
+- [05 – Nutrient Management & EC Control](05-nutrient-management-and-ec-control.md)
+
+**Related Documentation**
+
+- [00 – System Overview](00-system-overview.md)
+- [01 – Database Design](01-database-design.md)
+- [Node-RED README](../node-red/README.md)
+- [Home Assistant Packages README](../home-assistant/packages/README.md)

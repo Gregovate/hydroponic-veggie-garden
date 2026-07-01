@@ -1,5 +1,9 @@
 # ESPHome Controller
 
+Revision: 1.0
+Last Updated: 2026-07-01
+Status: Production
+
 ## Purpose
 
 The ESPHome controller performs the real-time hydroponics control work. It directly interfaces with the sensors, relays, pumps, solenoid, and local controller logic.
@@ -54,3 +58,11 @@ Home Assistant and Node-RED supervise and log the system, but the ESPHome contro
 | Date | Change |
 |---|---|
 | 2026-06-28 | Documented ESPHome controller role as the primary physical control layer. |
+
+---
+
+## Related Documentation
+
+- [System Overview](../docs/00-system-overview.md)
+- [Database Design](../docs/01-database-design.md)
+- [ESP32 Controller Hardware](../docs/hardware/esp_32_controller_readme.md)

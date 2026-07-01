@@ -1,8 +1,39 @@
-# # Hydroponics Node-RED Workflows
+# Hydroponics Node-RED Workflows
 
-Node-RED performs workflow logic for the hydroponics system.
+**Revision:** 1.1
+**Last Updated:** 2026-07-01
+**Status:** Production
 
-The dashboard and ESPHome devices trigger events. Node-RED validates the event data, builds database records, and writes permanent history to MariaDB.
+---
+
+# Purpose
+
+Node-RED is the workflow automation engine for the hydroponic system.
+
+It receives events from Home Assistant and ESPHome, executes multi-step business logic, validates operational data, and records permanent historical information in MariaDB.
+
+Node-RED coordinates workflows between the operator interface, the ESPHome controller, and the MariaDB database. Physical hardware control remains the responsibility of ESPHome, while Home Assistant provides the primary operator interface.
+
+---
+
+# Responsibilities
+
+Node-RED is responsible for:
+
+- Workflow automation
+- Multi-step process execution
+- Database transactions
+- Hydro-History generation
+- Historical event formatting
+- MQTT publication
+- Business logic
+- Operator workflow processing
+
+Node-RED is not responsible for:
+
+- Physical hardware control
+- Dashboard presentation
+- Long-term data storage
 
 ---
 
@@ -232,17 +263,17 @@ Home Assistant History Browser
 
 ---
 
+# Planned Workflows
 
-# Planned Features
 * Equipment issue workflow
 * Maintenance completed workflow
 * Event detail popup
 * History filtering
 * Search
 
-## Change Log
+---
 
-## Change Log
+# Revision History
 
 | Date       | Flow                                    | Change |
 | ---------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -252,3 +283,19 @@ Home Assistant History Browser
 | 2026-06-29 | `Flow-3_DB_History_Browser.json`        | Initial Hydro-History browser. Added state-driven paging using Home Assistant helpers, MariaDB query of `v_hydro_recent_activity`, formatting, and MQTT publication for dashboard display. |
 | 2026-06-28 | `Flow-1_Hydroponics_Cycle_Manager.json` | Repaired mode/event logging. Mode now comes from Home Assistant control mode. Fill+dose cycles log as `FILL`. |
 | 2026-06-28 | `Flow-2_TDS_Reference.json`             | Added production EC reference capture workflow from the Home Assistant Measure EC popup to MariaDB. |
+
+---
+
+# Navigation
+
+## Engineering Manual
+
+- [System Overview](../docs/00-system-overview.md)
+- [Dashboard & History Design](../docs/04-dashboard-history-design.md)
+- [Nutrient Management & EC Control](../docs/05-nutrient-management-and-ec-control.md)
+
+## Component Documentation
+
+- [ESPHome](../esphome/README.md)
+- [Home Assistant Packages](../home-assistant/packages/README.md)
+- [SQL](../sql/README.md)
