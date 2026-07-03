@@ -20,8 +20,8 @@
         "topic": "",
         "payload": "",
         "payloadType": "date",
-        "x": 150,
-        "y": 1640,
+        "x": 190,
+        "y": 2120,
         "wires": [
             [
                 "get_hydro_history_record_offset"
@@ -40,8 +40,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 790,
-        "y": 1720,
+        "x": 830,
+        "y": 2200,
         "wires": [
             [
                 "f5ee07229a11f2f3"
@@ -54,8 +54,8 @@
         "z": "3ec2ad8e53afdcdc",
         "mydb": "mysql_logbook_placeholder",
         "name": "Query Recent Activity",
-        "x": 1100,
-        "y": 1720,
+        "x": 1140,
+        "y": 2200,
         "wires": [
             [
                 "fbc1559bf50e083e"
@@ -74,8 +74,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 1360,
-        "y": 1720,
+        "x": 1400,
+        "y": 2200,
         "wires": [
             [
                 "af6c5898dee7e49e",
@@ -96,8 +96,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 1680,
-        "y": 1660,
+        "x": 1720,
+        "y": 2140,
         "wires": []
     },
     {
@@ -114,8 +114,8 @@
         "correl": "",
         "expiry": "",
         "broker": "595aab1d78b74ffb",
-        "x": 1680,
-        "y": 1720,
+        "x": 1720,
+        "y": 2200,
         "wires": []
     },
     {
@@ -142,8 +142,8 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 430,
-        "y": 1640,
+        "x": 470,
+        "y": 2120,
         "wires": [
             [
                 "get_hydro_history_records_per_page"
@@ -174,12 +174,13 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 490,
-        "y": 1720,
+        "x": 530,
+        "y": 2200,
         "wires": [
             [
                 "94fcd52572e0a087",
-                "9def0b0926f8c33d"
+                "9def0b0926f8c33d",
+                "build_ec_reference_select"
             ]
         ]
     },
@@ -227,8 +228,8 @@
                 "valueType": "eventData"
             }
         ],
-        "x": 140,
-        "y": 1700,
+        "x": 180,
+        "y": 2180,
         "wires": [
             [
                 "get_hydro_history_record_offset"
@@ -279,8 +280,8 @@
                 "valueType": "eventData"
             }
         ],
-        "x": 140,
-        "y": 1760,
+        "x": 180,
+        "y": 2240,
         "wires": [
             [
                 "get_hydro_history_record_offset"
@@ -300,8 +301,94 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 740,
-        "y": 1640,
+        "x": 780,
+        "y": 2120,
+        "wires": []
+    },
+    {
+        "id": "build_ec_reference_select",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Build EC Reference SELECT",
+        "func": "msg.topic = `\nSELECT\n    id,\n    captured_at,\n    meter_value,\n    meter_units,\n    probe_voltage,\n    tank_gallons,\n    water_temp_f,\n    rain_since_last_reference_in,\n    estimated_rain_added_gal,\n    note,\n    operator_note\nFROM hydro_tds_reference_reading\nORDER BY captured_at DESC\nLIMIT 20;\n`;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 820,
+        "y": 2280,
+        "wires": [
+            [
+                "query_ec_reference_history"
+            ]
+        ]
+    },
+    {
+        "id": "query_ec_reference_history",
+        "type": "mysql",
+        "z": "3ec2ad8e53afdcdc",
+        "mydb": "mysql_logbook_placeholder",
+        "name": "Query EC Reference History",
+        "x": 1120,
+        "y": 2280,
+        "wires": [
+            [
+                "format_ec_reference_history"
+            ]
+        ]
+    },
+    {
+        "id": "format_ec_reference_history",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Format EC Reference History",
+        "func": "const rows = Array.isArray(msg.payload) ? msg.payload : [];\n\n// Format numeric values for dashboard display.\n// Important: NULL database values must stay \"-\".\n// Without this check, JavaScript converts Number(null) to 0.\nfunction fmt(v, d) {\n    if (v === null || v === undefined || v === \"\") {\n        return \"-\";\n    }\n\n    const n = Number(v);\n\n    if (!Number.isFinite(n)) {\n        return \"-\";\n    }\n\n    return n.toFixed(d);\n}\n\nfunction fmtDate(v) {\n    const d = new Date(v);\n\n    if (Number.isNaN(d.getTime())) {\n        return String(v || \"\");\n    }\n\n    return d.toLocaleString(\"en-US\", {\n        weekday: \"short\",\n        month: \"short\",\n        day: \"numeric\",\n        hour: \"numeric\",\n        minute: \"2-digit\",\n        hour12: true\n    });\n}\n\nconst md = rows.map(r => {\n    let s = `### ${fmtDate(r.captured_at)}\\n`;\n\n    s += `**Meter:** ${fmt(r.meter_value, 2)} ${r.meter_units || \"\"}`;\n    s += `  •  **Probe:** ${fmt(r.probe_voltage, 3)} V`;\n    s += `  •  **Tank:** ${fmt(r.tank_gallons, 1)} gal`;\n    s += `  •  **Temp:** ${fmt(r.water_temp_f, 1)} °F\\n\\n`;\n\n    s += `Rain Since: ${fmt(r.rain_since_last_reference_in, 3)} in`;\n    s += `  •  Rain Added: ${fmt(r.estimated_rain_added_gal, 3)} gal\\n\\n`;\n\n    if (r.note) {\n        s += `${String(r.note)}\\n`;\n    }\n\n    if (r.operator_note) {\n        s += `\\n**Operator Note:** ${String(r.operator_note)}\\n`;\n    }\n\n    return s;\n}).join(\"\\n---\\n\");\n\nmsg.payload = JSON.stringify({\n    state: \"ok\",\n    ec_reference_text: md,\n    updated_at: new Date().toISOString()\n});\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1430,
+        "y": 2280,
+        "wires": [
+            [
+                "publish_ec_reference_history",
+                "00ae8868abd799ec"
+            ]
+        ]
+    },
+    {
+        "id": "publish_ec_reference_history",
+        "type": "mqtt out",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Publish EC Reference History",
+        "topic": "hydro/history/ec_reference",
+        "qos": "",
+        "retain": "true",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "595aab1d78b74ffb",
+        "x": 1750,
+        "y": 2280,
+        "wires": []
+    },
+    {
+        "id": "00ae8868abd799ec",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Format EC Format",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1650,
+        "y": 2380,
         "wires": []
     },
     {
@@ -376,7 +463,7 @@
         "enableGlobalContextStore": true
     },
     {
-        "id": "40c68a7b26325aa7",
+        "id": "5f2b87e2845153db",
         "type": "global-config",
         "env": [],
         "modules": {
