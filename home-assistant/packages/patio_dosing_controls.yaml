@@ -25,19 +25,22 @@
 #   is circulating. This is independent of the automatic refill controller.
 #
 # Control Strategy:
-#   • Current production auto-dose logic still uses raw TDS probe voltage.
-#   • A new Estimated EC sensor is being introduced for observation,
-#     comparison, and future EC-based dosing logic.
-#   • Estimated EC is NOT yet the authority for automatic dosing.
+#   • Current production auto-dose logic uses raw TDS probe voltage.
+#   • Outside Estimated EC provides a live engineering estimate of
+#     reservoir EC for dashboard monitoring and comparison against
+#     handheld EC reference measurements.
+#   • Rainfall and estimated dilution are recorded with each handheld
+#     EC reference to improve future calibration of the Estimated EC model.
+#   • Estimated EC is NOT yet used for automatic dosing decisions.
 #   • Calculates a step dose from:
 #
 #         Tank Volume × mL per Gallon
 #
 #   • Doses equal amounts of Nutrient A and Nutrient B.
 #   • Waits 10 minutes for complete circulation.
-#   • Rechecks TDS.
+#   • Rechecks probe voltage.
 #   • Repeats until:
-#       - Minimum TDS is restored, OR
+#       - Minimum voltage threshold is restored, OR
 #       - Maximum dose cycles are reached.
 #
 # Operating Range
@@ -94,6 +97,10 @@
 #
 # Revision History
 # ----------------
+# 2026-07-03  GAL  Added rainfall/dilution context to EC reference workflow.
+#                  Rain total, rain since last EC reference, and estimated
+#                  rainwater added are now stored with handheld EC readings.
+#                  Live Estimated EC remains voltage-only in model v0.1.
 # 2026-07-02  GAL  Added Outside Estimated EC sensor derived from the
 #                  installed TDS probe voltage for comparison against
 #                  handheld EC reference measurements. Production
@@ -109,25 +116,32 @@
 
 template:
   - sensor:
-      #
+      # ─────────────────────────────────────────────────────────
       # Status:
       # - Experimental engineering sensor.
       # - NOT currently used for automatic dosing decisions.
       # - Handheld EC measurements remain the calibration authority.
       #
       # Estimation Model:
-      # Version: 0.1 (Initial Field Calibration)
+      # Version: 0.1 (Initial Voltage-Only Field Calibration)
       #
       #   estimated_ec = (2.1632 × probe_voltage) - 2.4984
       #
       # Field Calibration Data:
       # - 2026-06-27  EC ≈ 2.0
       # - 2026-07-01  EC = 1.7
-      # - 2026-07-02  EC = 1.5
+      # - 2026-07-02  EC = 1.5 after estimated 0.442 gal rain dilution
       # - 2026-07-02  EC = 1.9 after manual 50 mL Part A + 50 mL Part B correction
+      # - 2026-07-03  EC = 1.8 after estimated 0.342 gal overnight rain dilution
+      #
+      # Rainfall / Dilution Context:
+      # - Rainfall is now recorded with EC reference readings.
+      # - Rainfall is NOT yet part of this live Estimated EC formula.
+      # - Rainfall data will be used to improve future model versions.
       #
       # Future Work:
       # - Incorporate water temperature compensation.
+      # - Incorporate rainfall dilution context.
       # - Improve the estimation model using additional handheld EC
       #   reference measurements collected over time.
       # - Replace voltage-based automatic dosing with Estimated EC

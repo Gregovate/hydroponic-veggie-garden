@@ -221,24 +221,44 @@ Fill wasted due to broken recirculating pump hose clamp. Nutrients discharged on
 
 ### Columns
 
-| Column          | Type                  | Notes                                               |
-| --------------- | --------------------- | --------------------------------------------------- |
-| `id`            | bigint auto_increment | Primary key                                         |
-| `captured_at`   | datetime              | Local reading timestamp                             |
-| `system_key`    | varchar(50)           | Default `outside`                                   |
-| `probe_voltage` | decimal(6,3)          | Installed probe voltage                             |
-| `meter_value`   | decimal(8,2)          | Handheld meter reading                              |
-| `meter_units`   | varchar(20)           | Usually `EC`                                        |
-| `tank_gallons`  | decimal(8,2)          | Tank gallons at reading                             |
-| `water_temp_f`  | decimal(6,2)          | Water temperature at reading, if available          |
-| `note`          | varchar(255)          | Original EC reference note entered with the reading |
-| `operator_note` | varchar(255)          | Later annotation added from the Hydro-History app   |
+| Column                         | Type                  | Notes                                               |
+| ------------------------------ | --------------------- | --------------------------------------------------- |
+| `id`                           | bigint auto_increment | Primary key                                         |
+| `captured_at`                  | datetime              | Local reading timestamp                             |
+| `system_key`                   | varchar(50)           | Default `outside`                                   |
+| `probe_voltage`                | decimal(6,3)          | Installed probe voltage                             |
+| `meter_value`                  | decimal(8,2)          | Handheld meter reading                              |
+| `meter_units`                  | varchar(20)           | Usually `EC`                                        |
+| `tank_gallons`                 | decimal(8,2)          | Tank gallons at reading                             |
+| `water_temp_f`                 | decimal(6,2)          | Water temperature at reading, if available          |
+| `rain_total_in`                | decimal(8,3)          | Cumulative rainfall total at time of EC reference   |
+| `rain_since_last_reference_in` | decimal(8,3)          | Rainfall since the previous EC reference            |
+| `estimated_rain_added_gal`     | decimal(8,3)          | Estimated rainwater added to reservoir              |
+| `note`                         | varchar(255)          | Original EC reference note entered with the reading |
+| `operator_note`                | varchar(255)          | Later annotation added from the Hydro-History app   |
 
 ### Indexes
 
 | Index     | Column |
 | --------- | ------ |
 | `PRIMARY` | `id`   |
+
+### Rainfall / Dilution Context
+
+Rainfall can dilute the outdoor reservoir because part of the tank is exposed.
+
+The EC reference workflow records cumulative rainfall at the time of each handheld EC measurement. It also calculates rainfall since the previous EC reference and estimates how many gallons of rainwater entered the reservoir.
+
+This allows EC reference readings to be evaluated with:
+
+- handheld EC
+- probe voltage
+- water temperature
+- tank gallons
+- rainfall since the previous EC reference
+- estimated rainwater dilution
+
+The estimated rain volume is calculated from the exposed tank opening defined in Home Assistant patio system constants.
 
 # Partial Inventory and Nutrient Tables
 
