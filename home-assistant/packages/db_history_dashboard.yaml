@@ -5,15 +5,17 @@
 # Author: Greg Liebig
 #
 # Purpose:
-#   Provides Home Assistant entities for the Hydro-History dashboard.
+#   Provides Home Assistant entities for the Hydro-History dashboard/App.
 #
 # Responsibilities:
-# • History dashboard display
-# • History browser state
-# • Paging controls
-# • Selected-event helpers
-# • Operator note workflow helpers
-# • MQTT entities used by the History dashboard
+#   • History dashboard display
+#   • History browser state
+#   • Paging controls
+#   • Selected-event helpers
+#   • Operator note workflow helpers
+#   • MQTT entities used by the History dashboard
+#   • Field note workflow helpers
+#   • Optional field note date and location context
 #
 # Does NOT Contain:
 #   • Core database connectivity checks
@@ -35,15 +37,22 @@
 #
 # Related Files:
 #   • db_connect.yaml
-#   • node-red/Hydroponics_History_Browser.json
+#   • node-red/Flow-3_DB_History_Browser.json
+#   • node-red/Flow-4_Add_Note_to_Selected_Event.json
+#   • node-red/Flow-5_Insert_Field_Note.json
 #   • docs/04-dashboard-history-design.md
 #   • docs/01-database-design.md
 #
 # Revision History
 #
+# 2026-07-01  GAL
+#   Added standalone field note helpers.
+#   Added optional field note date and location context.
+#
 # 2026-06-29  GAL
 #   Initial Hydro-History dashboard package.
 #   Added MQTT history sensor and browser state helper entities.
+#
 #
 #==============================================================================
 
@@ -58,9 +67,15 @@ mqtt:
       state_topic: "hydro/history/recent"
       value_template: "{{ value_json.state }}"
       json_attributes_topic: "hydro/history/recent"
+      json_attributes_template: >
+        {{ {
+          "activity_text": value_json.activity_text,
+          "records": value_json.records,
+          "updated_at": value_json.updated_at
+        } | tojson }}
 
 #------------------------------------------------------------------------------
-# Browser State
+# Input Number Helpers
 #------------------------------------------------------------------------------
 
 input_number:
@@ -82,12 +97,30 @@ input_number:
     initial: 5
     mode: box
 
+    #------------------------------------------------------------------------------
+# Input Text Helpers
+#------------------------------------------------------------------------------
 input_text:
-  # Selected maintenance_log record ID.
+  # Selected source-aware activity ID from v_hydro_recent_activity.
+  # Format: activity_source:source_id
+  # Example: maintenance_log:52 or ec_reference:5
   hydro_history_selected_event_id:
     name: Hydro History Selected Event ID
     max: 20
     icon: mdi:identifier
+
+  # Operator note text entered in Home Assistant.
+  # Node-RED writes this to the selected source table's operator_note field.
+  hydro_history_operator_note:
+    name: Hydro History Operator Note
+    max: 255
+    icon: mdi:note-edit
+
+  # Standalone field note entered as a new maintenance_log NOTE event.
+  hydro_history_field_note:
+    name: Hydro History Field Note
+    max: 255
+    icon: mdi:notebook-edit
 
 input_boolean:
   # Automatically refresh history after new database activity.
@@ -96,11 +129,66 @@ input_boolean:
     icon: mdi:refresh-auto
     initial: true
 
+  # Shows database/debug information on the Hydro History Browser dashboard.
+  hydro_history_debug:
+    name: Hydro History DB Debug
+    icon: mdi:bug
+
+#------------------------------------------------------------------------------
+# Input Buttons
+#------------------------------------------------------------------------------
+input_button:
+  # Saves the current operator note to the selected maintenance_log record.
+  # Node-RED listens for this button press, performs the UPDATE, then refreshes
+  # the Hydro History Browser.
+  hydro_history_save_operator_note:
+    name: Hydro History Save Operator Note
+    icon: mdi:content-save
+
+  # Creates a standalone NOTE event in maintenance_log from the field note text.
+  # Node-RED inserts the record, clears the helper, then refreshes the browser.
+  hydro_history_create_field_note:
+    name: Hydro History Create Field Note
+    icon: mdi:note-plus
+
+#------------------------------------------------------------------------------
+# Input Date/Time Helpers
+#------------------------------------------------------------------------------
+input_datetime:
+  # Optional local date override for standalone Hydro-History field notes.
+  # Node-RED combines this date with the current save time.
+  # If the selected date is today, the note is saved using NOW().
+  # If the selected date is earlier than today, the selected date is preserved
+  # and the current save time is used.
+  hydro_history_field_note_date:
+    name: Hydro History Field Note Date
+    has_date: true
+    has_time: false
+    icon: mdi:calendar
+
+#------------------------------------------------------------------------------
+# Input Select Helpers
+#------------------------------------------------------------------------------
+input_select:
+  # Optional location context for standalone Hydro-History field notes.
+  hydro_history_field_note_location:
+    name: Hydro History Field Note Location
+    options:
+      - patio
+      - reservoir
+      - east channel
+      - west channel
+      - dosing system
+      - plants
+      - other
+    icon: mdi:map-marker
+
 #------------------------------------------------------------------------------
 # Scripts
 #------------------------------------------------------------------------------
 script:
-  # Requests Node-RED to refresh the Hydro-History activity browser.
+  # Broadcasts a Hydro History refresh request.
+  # Node-RED listens for this event and rebuilds the history browser.
   hydro_history_refresh:
     alias: Hydro History Refresh
     mode: single

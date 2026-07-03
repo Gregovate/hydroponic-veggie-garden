@@ -1,11 +1,57 @@
-# /config/packages/hydroponics/batch_building.yaml
-# 💧 Hydroponics Dosing Monitor (Cost & History Only)
-# Tracks chemical usage, cost, and last batch details
-# All real-time control and refill logic is moved to patio_controller.yaml
-# Cleaned: 2025-08-04
+#==============================================================================
+# Package: batch_building.yaml
+#
+# Project: Hydroponics Veggie Garden
+# Author: Greg Liebig
+#
+# Purpose:
+#   Provides Home Assistant helpers and summary sensors for nutrient batch
+#   tracking, cost reporting, and last-batch history.
+#
+# Responsibilities:
+#   • Nutrient cost-per-mL helpers
+#   • Last batch start-level helpers
+#   • Last batch cost helpers
+#   • Last batch mixed date/time helpers
+#   • Batch summary template sensors
+#   • Nutrient usage cost template sensors
+#
+# Does NOT Contain:
+#   • Real-time pump control
+#   • Fill or dose automation logic
+#   • EC/TDS control logic
+#   • Flow alarm logic
+#   • Database write logic
+#
+# Notes:
+#   This package may reference real-time dosing totals owned by the patio
+#   dosing/controller packages, but it does not own those sensors.
+#
+# Related Files:
+#   • patio_controller.yaml
+#   • patio_dosing_controls.yaml
+#   • docs/05-nutrient-management-and-ec-control.md
+#   • docs/hydroponics-nutrient-solution-mixing.md
+#
+# Revision History
+#
+# 2026-07-01  GAL
+#   Standardized package header.
+#   Confirmed package scope as batch cost/history only.
+#
+# 2025-08-04  GAL
+#   Cleaned dosing monitor helpers after real-time control moved elsewhere.
+#
+#==============================================================================
 
+#------------------------------------------------------------------------------
+# Input Numbers
+#------------------------------------------------------------------------------
+  
 input_number:
-  # 💲 Cost tracking for usage reporting
+  #--------------------------------------------------------------------------
+  # Cost Configuration
+  #--------------------------------------------------------------------------
   nutrient_a_cost_per_ml:
     name: Cost per mL A
     min: 0
@@ -21,8 +67,10 @@ input_number:
     step: 0.001
     unit_of_measurement: "$"
     initial: 0.005
-
-  # 🫙 Batch metadata for logging only
+    
+  #--------------------------------------------------------------------------
+  # Batch Metadata
+  #--------------------------------------------------------------------------
   last_batch_start_level_a:
     name: Container Start Level A (mL)
     min: 0
@@ -65,9 +113,31 @@ input_number:
     step: 10
     unit_of_measurement: "mL"
 
+#------------------------------------------------------------------------------
+# Input Date/Time
+#------------------------------------------------------------------------------
+input_datetime:
+  #--------------------------------------------------------------------------
+  # Batch History
+  #--------------------------------------------------------------------------
+  last_batch_mixed_a:
+    name: Last Batch Mixed A
+    has_date: true
+    has_time: true
+
+  last_batch_mixed_b:
+    name: Last Batch Mixed B
+    has_date: true
+    has_time: true
+
+#------------------------------------------------------------------------------
+# Template Sensors
+#------------------------------------------------------------------------------
 template:
   - sensor:
-      # 💲 Real-time calculated cost of total dosing so far (OUTSIDE totals)
+      #--------------------------------------------------------------------------
+      # Nutrient Cost
+      #--------------------------------------------------------------------------
       - name: "Cost of Nutrient A ($)"
         unique_id: cost_of_nutrient_a
         unit_of_measurement: "$"
@@ -88,7 +158,9 @@ template:
           {% set cost = states('input_number.nutrient_b_cost_per_ml') | float(0) %}
           {{ (ml * cost) | round(2) }}
 
-      # 🧪 Summary of last batch prep — for UI panel display
+      #--------------------------------------------------------------------------
+      # Batch Summary
+      #--------------------------------------------------------------------------
       - name: "Batch A Summary"
         unique_id: batch_a_summary
         icon: mdi:flask-outline
@@ -104,15 +176,3 @@ template:
           Last mixed {{ states('input_datetime.last_batch_mixed_b') }},
           cost ${{ states('input_number.last_batch_cost_b') }},
           start {{ states('input_number.last_batch_start_level_b') }} mL
-
-# record date/time a new batch was mixed
-input_datetime:
-  last_batch_mixed_a:
-    name: Last Batch Mixed A
-    has_date: true
-    has_time: true
-
-  last_batch_mixed_b:
-    name: Last Batch Mixed B
-    has_date: true
-    has_time: true

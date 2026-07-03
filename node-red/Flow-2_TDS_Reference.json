@@ -216,7 +216,7 @@
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
         "name": "Build TDS Reference INSERT SQL",
-        "func": "const now = Date.now();\nconst lastCapture = flow.get(\"outside_tds_reference_last_capture_ms\") || 0;\n\nif (now - lastCapture < 15000) {\n    node.warn(\"Ignored duplicate TDS reference capture inside 15 second lockout.\");\n    return null;\n}\n\nflow.set(\"outside_tds_reference_last_capture_ms\", now);\n\nfunction cleanNumber(value) {\n    if (value === undefined || value === null) return null;\n    const n = parseFloat(String(value).replace(/[^0-9.\\-]/g, \"\"));\n    return Number.isFinite(n) ? n : null;\n}\n\nfunction sqlText(value) {\n    if (value === undefined || value === null) return \"NULL\";\n    const s = String(value).trim();\n    if (s.length === 0) return \"NULL\";\n    return \"'\" + s.replace(/'/g, \"''\").slice(0, 255) + \"'\";\n}\n\nconst voltage = cleanNumber(msg.tds_voltage);\nconst meterValue = cleanNumber(msg.meter_value);\nconst gallons = cleanNumber(msg.tank_gallons);\nconst waterTemp = cleanNumber(msg.water_temp_f);\nconst units = String(msg.meter_units || \"ppm\").trim();\nconst note = msg.reference_note;\n\nif (voltage === null) {\n    node.error(\"TDS reference capture failed: invalid TDS voltage\", msg);\n    return null;\n}\n\nif (meterValue === null || meterValue <= 0) {\n    node.error(\"TDS reference capture failed: manual meter value is missing or invalid\", msg);\n    return null;\n}\n\nmsg.topic = `\nINSERT INTO hydro_tds_reference_reading\n    (system_key, probe_voltage, meter_value, meter_units, tank_gallons, water_temp_f, note)\nVALUES\n    (\n        'outside',\n        ${voltage.toFixed(3)},\n        ${meterValue.toFixed(2)},\n        ${sqlText(units)},\n        ${gallons === null ? \"NULL\" : gallons.toFixed(2)},\n        ${waterTemp === null ? \"NULL\" : waterTemp.toFixed(1)},\n        ${sqlText(note)}\n    );\n`;\n\nmsg.payload = {\n    system_key: \"outside\",\n    probe_voltage: voltage,\n    meter_value: meterValue,\n    meter_units: units,\n    tank_gallons: gallons,\n    water_temp_f: waterTemp,\n    note: note\n};\n\nreturn msg;",
+        "func": "const now = Date.now();\nconst lastCapture = flow.get(\"outside_tds_reference_last_capture_ms\") || 0;\n\nconst LOCKOUT_MS = 30000;\n\nif (now - lastCapture < LOCKOUT_MS) {\n    node.warn(`Ignored duplicate TDS reference capture inside ${LOCKOUT_MS / 1000} second lockout.`);\n    return null;\n}\n\nflow.set(\"outside_tds_reference_last_capture_ms\", now);\n\nfunction cleanNumber(value) {\n    if (value === undefined || value === null) return null;\n    const n = parseFloat(String(value).replace(/[^0-9.\\-]/g, \"\"));\n    return Number.isFinite(n) ? n : null;\n}\n\nfunction sqlText(value) {\n    if (value === undefined || value === null) return \"NULL\";\n    const s = String(value).trim();\n    if (s.length === 0) return \"NULL\";\n    return \"'\" + s.replace(/'/g, \"''\").slice(0, 255) + \"'\";\n}\n\nconst voltage = cleanNumber(msg.tds_voltage);\nconst meterValue = cleanNumber(msg.meter_value);\nconst gallons = cleanNumber(msg.tank_gallons);\nconst waterTemp = cleanNumber(msg.water_temp_f);\nconst units = String(msg.meter_units || \"ppm\").trim();\nconst note = msg.reference_note;\n\nif (voltage === null) {\n    node.error(\"TDS reference capture failed: invalid TDS voltage\", msg);\n    return null;\n}\n\nif (meterValue === null || meterValue <= 0) {\n    node.error(\"TDS reference capture failed: manual meter value is missing or invalid\", msg);\n    return null;\n}\n\nmsg.topic = `\nINSERT INTO hydro_tds_reference_reading\n    (system_key, probe_voltage, meter_value, meter_units, tank_gallons, water_temp_f, note)\nVALUES\n    (\n        'outside',\n        ${voltage.toFixed(3)},\n        ${meterValue.toFixed(2)},\n        ${sqlText(units)},\n        ${gallons === null ? \"NULL\" : gallons.toFixed(2)},\n        ${waterTemp === null ? \"NULL\" : waterTemp.toFixed(1)},\n        ${sqlText(note)}\n    );\n`;\n\nmsg.payload = {\n    system_key: \"outside\",\n    probe_voltage: voltage,\n    meter_value: meterValue,\n    meter_units: units,\n    tank_gallons: gallons,\n    water_temp_f: waterTemp,\n    note: note\n};\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -260,7 +260,7 @@
         "wires": [
             [
                 "tds_ref_insert_result",
-                "clear_tds_reference_note"
+                "clear_tds_meter_entry"
             ]
         ]
     },
@@ -304,7 +304,7 @@
         "blockInputOverrides": false,
         "domain": "input_text",
         "service": "set_value",
-        "x": 2160,
+        "x": 2180,
         "y": 1560,
         "wires": [
             [
@@ -423,6 +423,37 @@
         ]
     },
     {
+        "id": "clear_tds_meter_entry",
+        "type": "api-call-service",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Clear TDS Meter Entry",
+        "server": "28f1afb.2a0725",
+        "version": 7,
+        "debugenabled": false,
+        "action": "input_number.set_value",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [],
+        "labelId": [],
+        "data": "{\"entity_id\":\"input_number.outside_tds_meter_entry\",\"value\":0}",
+        "dataType": "json",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": false,
+        "domain": "input_number",
+        "service": "set_value",
+        "x": 1920,
+        "y": 1560,
+        "wires": [
+            [
+                "clear_tds_reference_note"
+            ]
+        ]
+    },
+    {
         "id": "28f1afb.2a0725",
         "type": "server",
         "name": "Home Assistant",
@@ -463,7 +494,7 @@
         "charset": "UTF8"
     },
     {
-        "id": "dd79277a51f3c875",
+        "id": "f2762bbc230da2ba",
         "type": "global-config",
         "env": [],
         "modules": {

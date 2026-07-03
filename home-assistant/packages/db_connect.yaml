@@ -11,6 +11,7 @@
 # Responsibilities:
 #   • Verify MariaDB connectivity
 #   • Verify SQL integration is operational
+#   • Verify Hydro-History database access
 #   • Provide simple diagnostic sensors used during system startup
 #
 # Does NOT Contain:
@@ -20,29 +21,35 @@
 #   • Harvest queries
 #   • Workflow helpers
 #
-# Those belong in feature-specific database packages.
-#
 # Database:
 #   logbook
 #
 # Related Packages:
-#   db_history_dashboard.yaml
-#   batch_building.yaml
-#   harvest_inputs.yaml
+#   • db_history_dashboard.yaml
+#   • batch_building.yaml
+#   • harvest_inputs.yaml
+#
+# Primary Database Objects:
+#   • v_hydro_recent_activity
 #
 # Revision History
+#
+# 2026-07-01  GAL
+#   Standardized package header and section layout.
+#
+# 2026-06-29  GAL
+#   Added production connectivity verification using
+#   v_hydro_recent_activity.
 #
 # 2026-06-28  GAL
 #   Initial package.
 #   Added MariaDB connectivity verification.
 #
-# 2026-06-29  GAL
-#   Added production connectivity verification using
-#   v_hydro_recent_activity.
-
-#   History Dashboard package planned but not yet implemented.
-#
 #==============================================================================
+
+#------------------------------------------------------------------------------
+# SQL Sensors
+#------------------------------------------------------------------------------
 
 sql:
   - name: test_logbook_connection
@@ -58,8 +65,12 @@ sql:
       FROM v_hydro_recent_activity
     column: activity_count
 
+#------------------------------------------------------------------------------
+# Template Sensors
+#------------------------------------------------------------------------------
 
 template:
   - sensor:
+      # Simple template sensor used to verify template processing.
       - name: "Hydro Canary"
         state: "ok"

@@ -1,18 +1,56 @@
-# config/packages/hydroponics/global_constants.yaml
-# 🌱 Hydroponics Global Constants (Universal Plant Requirements)
+#==============================================================================
+# Package: global_constants.yaml
 #
-# Defines TDS and dosing values that apply to all hydroponic systems,
-# regardless of physical location or controller. These are biology-based
-# thresholds and conversion factors used in:
-# - Suggested dosing calculations
-# - TDS alert warnings
-# - Target EC maintenance logic
+# Project: Hydroponics Veggie Garden
+# Status: Production
+# Last Updated: 2026-07-01
 #
-# Created: 2025-08-04
-# Maintainer: Greg Liebig
+# Purpose:
+#   Defines shared hydroponic constants that may be used across multiple
+#   hydroponic systems.
+#
+#   The current production system is the patio/outside system. These values are
+#   currently used by that system, but this package is intended to hold defaults
+#   that may also apply to future systems such as an inside/basement winter grow.
+#
+# Responsibilities:
+#   • Shared target TDS helper
+#   • Shared minimum safe TDS helper
+#   • Shared maximum safe TDS helper
+#   • Shared TDS dosing conversion factor
+#
+# Does NOT Contain:
+#   • Patio-specific tank volume settings
+#   • Patio-specific fill thresholds
+#   • Patio-specific pump controls
+#   • Patio-specific dosing controls
+#   • Database connection configuration
+#   • SQL write commands
+#
+# Notes:
+#   Some values in this package may later become system-specific if the future
+#   inside/basement system requires different EC/TDS targets or dosing behavior.
+#   Do not rename or move these helpers during production operation unless all
+#   dashboard, package, and Node-RED references have been migrated.
+#
+# Related Files:
+#   • patio_system_constants.yaml
+#   • patio_dosing_controls.yaml
+#   • patio_controller.yaml
+#   • docs/05-nutrient-management-and-ec-control.md
+#
+# Revision History:
+#   2025-08-04  GAL  Initial global constants package.
+#   2026-07-01  GAL  Standardized package header and documented ownership.
+#==============================================================================
+
+#------------------------------------------------------------------------------
+# Input Number Helpers
+#------------------------------------------------------------------------------
 
 input_number:
-  # 🎯 Desired target TDS for healthy plants
+  # Desired target nutrient concentration.
+  # Units are currently expressed as TDS (ppm).
   target_tds:
     name: "Target TDS"
     min: 1500
@@ -23,7 +61,8 @@ input_number:
     icon: mdi:target
     initial: 2000
 
-  # ⚠️ Maximum safe TDS (above this may cause nutrient burn)
+  # Maximum safe TDS.
+  # Values above this may indicate nutrient concentration is too high.
   max_tds:
     name: "Max Safe TDS"
     min: 2000
@@ -33,7 +72,8 @@ input_number:
     icon: mdi:alert
     initial: 2300
 
-  # ⚠️ Minimum safe TDS (below this may cause deficiency)
+  # Minimum safe TDS.
+  # Values below this may indicate insufficient nutrient concentration.
   min_tds:
     name: "Min Safe TDS"
     min: 1200
@@ -43,7 +83,12 @@ input_number:
     icon: mdi:alert
     initial: 1800
 
-  # 📈 TDS Dosing Conversion Factor (mL / ppm·gallon)
+  # TDS dosing conversion factor.
+  # Units: mL per ppm per gallon.
+  #
+  # Used by suggested dose calculations. This is a shared default and may need
+  # to become system-specific if future systems use different nutrient recipes,
+  # tank sizes, crops, or dosing behavior.
   tds_dosing_factor:
     name: "TDS Dosing Factor"
     min: 0.001
@@ -54,28 +99,17 @@ input_number:
     mode: box
     initial: 0.01
 
-# For writing to logbook database added 25-08-19
-# Reusable DB write command (no automations or scripts here)
-# config/packages/hydroponics/global_constants.yaml
-# shell_command:
-#   insert_maintenance_row: >-
-#     mysql --silent --raw --skip-column-names
-#     -h {{ states('sensor.mariadb_host')|default('core-mariadb') }}
-#     -P {{ states('sensor.mariadb_port')|default('3306') }}
-#     -u !secret logbook_usr
-#     -p'!secret logbook_pwd'
-#     logbook
-#     -e {{ command | tojson }}
-
-#   #execute_sql: “/usr/bin/mariadb --ssl=0 -h core-mariadb -u homeassistant -phomeassistant -D homeassistant -e \”SELECT * FROM `statistics_runs` LIMIT 10;\” >> /config/sql_debug.log 2>&1”
-
-
-
-# template:
-#   - sensor:
-#       - name: mariadb_host
-#         unique_id: hydroponics_mariadb_host
-#         state: "core-mariadb"   # or "127.0.0.1"
-#       - name: mariadb_port
-#         unique_id: hydroponics_mariadb_port
-#         state: "3306"
+#------------------------------------------------------------------------------
+# Legacy / Removed Configuration Notes
+#------------------------------------------------------------------------------
+#
+# Older versions of this package contained commented database shell_command and
+# MariaDB host/port template sensor examples.
+#
+# Database connection configuration now belongs in:
+#
+#   db_connect.yaml
+#
+# SQL/database workflows are handled by Home Assistant SQL sensors, Node-RED,
+# and MariaDB. This package should remain limited to shared constants.
+#------------------------------------------------------------------------------

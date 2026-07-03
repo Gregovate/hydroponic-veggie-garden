@@ -1,7 +1,9 @@
-# /config/packages/hydroponics/patio_dosing_controls.yaml
 # ==============================================================================
-# 💧 Patio Hydroponics Dosing Controls
-# ==============================================================================
+# Package: patio_dosing_controls.yaml
+
+# Project: Hydroponics Veggie Garden
+# Author: Greg Liebig
+
 #
 # Purpose
 # -------
@@ -23,8 +25,10 @@
 #   is circulating. This is independent of the automatic refill controller.
 #
 # Control Strategy:
-#   • Uses raw calibrated TDS voltage only.
-#   • Does NOT use ppm/EC conversion math for control decisions.
+#   • Current production auto-dose logic still uses raw TDS probe voltage.
+#   • A new Estimated EC sensor is being introduced for observation,
+#     comparison, and future EC-based dosing logic.
+#   • Estimated EC is NOT yet the authority for automatic dosing.
 #   • Calculates a step dose from:
 #
 #         Tank Volume × mL per Gallon
@@ -90,6 +94,12 @@
 #
 # Revision History
 # ----------------
+# 2026-07-02  GAL  Added Outside Estimated EC sensor derived from the
+#                  installed TDS probe voltage for comparison against
+#                  handheld EC reference measurements. Production
+#                  auto-dose continues to use raw probe voltage until
+#                  the Estimated EC model has been sufficiently
+#                  validated with field data.
 # 2025-08-01  GAL  Initial dosing monitor package.
 # 2025-08-18  GAL  Inventory tracking and suggested dosing.
 # 2026-06-27  GAL  Added automatic maintenance dosing architecture,
@@ -99,6 +109,44 @@
 
 template:
   - sensor:
+      #
+      # Status:
+      # - Experimental engineering sensor.
+      # - NOT currently used for automatic dosing decisions.
+      # - Handheld EC measurements remain the calibration authority.
+      #
+      # Estimation Model:
+      # Version: 0.1 (Initial Field Calibration)
+      #
+      #   estimated_ec = (2.1632 × probe_voltage) - 2.4984
+      #
+      # Field Calibration Data:
+      # - 2026-06-27  EC ≈ 2.0
+      # - 2026-07-01  EC = 1.7
+      # - 2026-07-02  EC = 1.5
+      # - 2026-07-02  EC = 1.9 after manual 50 mL Part A + 50 mL Part B correction
+      #
+      # Future Work:
+      # - Incorporate water temperature compensation.
+      # - Improve the estimation model using additional handheld EC
+      #   reference measurements collected over time.
+      # - Replace voltage-based automatic dosing with Estimated EC
+      #   after sufficient validation.
+      # ─────────────────────────────────────────────────────────
+      - name: "Outside Estimated EC"
+        unique_id: outside_estimated_ec
+        unit_of_measurement: "mS/cm"
+        icon: mdi:chart-bell-curve
+        state: >
+          {% set v = states('sensor.hydroponics_patio_esp32_tds_raw') %}
+          {% if v in ['unknown', 'unavailable', 'none', ''] %}
+            unknown
+          {% else %}
+            {% set voltage = v | float(0) %}
+            {% set ec = (2.1632 * voltage) - 2.4984 %}
+            {{ [ec, 0] | max | round(2) }}
+          {% endif %}
+
       - name: "Outside Remaining Nutrient A (mL)"
         unique_id: outside_remaining_nutrient_a_ml
         unit_of_measurement: "mL"
@@ -305,13 +353,20 @@ template:
           {% set flow_west = states('sensor.hydroponics_patio_esp32_west_channel_flow') | float(0) %}
           {{ flow_east > 1 and flow_west > 1 }}
 
-      # ─────────────────────────────────────────────────────────
+      #─────────────────────────────────────────────────────────
       # Nutrient Inventory Low
-      # ON means auto-dosing should be blocked.
-      # Uses percent sensors:
-      # - sensor.outside_remaining_nutrient_a_pct
-      # - sensor.outside_remaining_nutrient_b_pct
-      # ─────────────────────────────────────────────────────────
+      #
+      # ON blocks automatic maintenance dosing.
+      #
+      # Uses the nutrient inventory percentage sensors:
+      #   sensor.outside_remaining_nutrient_a
+      #   sensor.outside_remaining_nutrient_b
+      #
+      # Note:
+      # Although these entities report percentages, their entity IDs do not
+      # include "_pct". The "_ml" entities represent the remaining nutrient
+      # volume and are not used by this safety interlock.
+      #─────────────────────────────────────────────────────────
       - name: "Outside Nutrient Inventory Low"
         unique_id: outside_nutrient_inventory_low
         device_class: problem

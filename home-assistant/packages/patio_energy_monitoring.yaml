@@ -1,39 +1,79 @@
-# ============================================================
-# ⚡ Hydroponics Patio Energy Monitoring
-# File: patio_energy_monitoring.yaml
-# Purpose:
-#   Monitor hydroponics power usage and provide
-#   seasonal energy tracking.
+#==============================================================================
+# Package: patio_energy_monitoring.yaml
 #
-# Created: 2026-06-04
-# ============================================================
+# Project: Hydroponics Veggie Garden
+# Author: Greg Liebig
+#
+# Purpose:
+#   Provides utility meter entities for monitoring electrical energy
+#   consumption of the patio hydroponic system.
+#
+# Responsibilities:
+#   • Daily energy usage
+#   • Weekly energy usage
+#   • Monthly energy usage
+#   • Seasonal/yearly energy usage
+#
+# Does NOT Contain:
+#   • Power monitoring sensors
+#   • Dashboard cards
+#   • Cost calculations
+#   • Database writes
+#   • Node-RED workflow logic
+#
+# Notes:
+#   Utility Meter entities accumulate energy reported by the patio power
+#   monitoring plug. Energy cost calculations and historical analysis are
+#   performed elsewhere.
+#
+# Related Files:
+#   • patio_controller.yaml
+#   • docs/00-system-overview.md
+#
+# Revision History
+#
+# 2026-07-02  GAL
+#   Standardized package header and section layout.
+#
+# 2026-06-04  GAL
+#   Initial package.
+#
+#==============================================================================
+
+#------------------------------------------------------------------------------
+# Utility Meters
+#------------------------------------------------------------------------------
 
 utility_meter:
 
-  # ----------------------------------------
+  #--------------------------------------------------------------------------
   # Daily Energy Usage
-  # ----------------------------------------
+  #--------------------------------------------------------------------------
+
   hydroponics_outside_energy_daily:
     source: sensor.plug_hydroponics_outside_energy
     cycle: daily
 
-  # ----------------------------------------
+  #--------------------------------------------------------------------------
   # Weekly Energy Usage
-  # ----------------------------------------
+  #--------------------------------------------------------------------------
+
   hydroponics_outside_energy_weekly:
     source: sensor.plug_hydroponics_outside_energy
     cycle: weekly
 
-  # ----------------------------------------
+  #--------------------------------------------------------------------------
   # Monthly Energy Usage
-  # ----------------------------------------
+  #--------------------------------------------------------------------------
+
   hydroponics_outside_energy_monthly:
     source: sensor.plug_hydroponics_outside_energy
     cycle: monthly
 
-  # ----------------------------------------
+  #--------------------------------------------------------------------------
   # Seasonal / Yearly Energy Usage
-  # ----------------------------------------
+  #--------------------------------------------------------------------------
+
   hydroponics_outside_energy_season:
     source: sensor.plug_hydroponics_outside_energy
     cycle: yearly

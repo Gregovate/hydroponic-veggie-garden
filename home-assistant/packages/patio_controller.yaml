@@ -1,13 +1,55 @@
-# /config/packages/hydroponics/patio_controller.yaml
-# Author: Greg
-# Last Updated: 2025-07-19
-# Purpose: Track outdoor hydroponics system including tank gallons, 
-# calibration, filtering, and refill prediction
-# Adding stats and fill predictions
-# totally reviewed/renamed sensors to new naming convention 25-07-30
-# Kept system controls in this package and split off the dosing calculator
-# into a new file called sosing controls 25-08-04
+#==============================================================================
+# Package: patio_controller.yaml
+#
+# Project: Hydroponics Veggie Garden
+# Author: Greg Liebig
+#
+# Purpose:
+#   Provides Home Assistant entities for the patio/outside hydroponics controller,
+#   including tank volume calculation, fill prediction, controller mode, and
+#   fill/dose timing helpers.
+#
+# Responsibilities:
+#   • Tank gallons calculation from HX711 calibration helpers
+#   • Filtered tank gallons sensor
+#   • Tank usage / empty prediction sensors
+#   • Controller mode selection
+#   • Fill cycle timing helpers
+#   • Dose cycle timestamp helpers
+#   • Manual fill amount helper
+#   • Manual dose amount helpers
+#   • Auto-fill enable helper
+#
+# Does NOT Contain:
+#   • Nutrient cost tracking
+#   • Batch building history
+#   • EC reference logging
+#   • Database writes
+#   • Node-RED workflow logic
+#
+# Related Files:
+#   • patio_system_constants.yaml
+#   • patio_dosing_controls.yaml
+#   • batch_building.yaml
+#   • db_history_dashboard.yaml
+#
+# Revision History
+#
+# 2026-07-01  GAL
+#   Standardized package header and section layout.
+#
+# 2025-08-04  GAL
+#   Kept system controls in this package and split dosing calculations into
+#   patio_dosing_controls.yaml.
+#
+# 2025-07-30  GAL
+#   Reviewed and renamed sensors to the current naming convention.
+#
+#==============================================================================
 
+#------------------------------------------------------------------------------
+# Template Sensors
+#------------------------------------------------------------------------------
 template:
   - sensor:
     # 📏 Gallons Calibration Sensor (From HX711 Raw Reading)
@@ -102,6 +144,9 @@ template:
           none
         {% endif %}
 
+#------------------------------------------------------------------------------
+# Filter / Statistics Sensors
+#------------------------------------------------------------------------------
 sensor:
   # 📉 Filtered Gallons Sensor (Removes minor jitter)
   - platform: filter
@@ -126,10 +171,12 @@ sensor:
       hours: 6
     state_characteristic: mean
 
-
-# 🔁 Control Mode Toggle (Auto/Manual)
-# Used to determine if filling/dosing should run automatically or notify user for manual intervention
+#------------------------------------------------------------------------------
+# Input Select Helpers
+#------------------------------------------------------------------------------
 input_select:
+  # 🔁 Control Mode Toggle (Auto/Manual)
+  # Used to determine if filling/dosing should run automatically or notify user for manual intervention
   hydroponics_outside_control_mode:
     name: Hydroponics Outside Control Mode
     options:
@@ -139,9 +186,11 @@ input_select:
     initial: Auto
     icon: mdi:autorenew
 
-
+#------------------------------------------------------------------------------
+# Input Date/Time Helpers
+#------------------------------------------------------------------------------
 input_datetime:
-# 🕒 Timestamps for Last Fill Cycle
+  # 🕒 Timestamps for Last Fill Cycle
   outside_tank_fill_started:
     name: "Outside Tank Fill Started"
     has_date: true
@@ -152,15 +201,15 @@ input_datetime:
     has_date: true
     has_time: true
 
-# Time what happened (threshold crossed),
-# when it happened (stored as datetime),
-# and aligns with your intention to delay action for 30 minutes after that point.
+  # Time what happened (threshold crossed),
+  # when it happened (stored as datetime),
+  # and aligns with your intention to delay action for 30 minutes after that point.
   auto_fill_threshold_crossed_at:
     name: "Auto Fill Threshold Crossed At"
     has_date: true
     has_time: true
 
-# 🕒 Timestamps for Last Dosing Cycle
+  # 🕒 Timestamps for Last Dosing Cycle
   last_outside_dose_a:
     name: "Last Outside Dose A"
     has_date: true
@@ -171,7 +220,9 @@ input_datetime:
     has_date: true
     has_time: true
 
-
+#------------------------------------------------------------------------------
+# Input Number Helpers
+#------------------------------------------------------------------------------
 input_number:
   # Selects the number of gallons to add to the tank
   outside_manual_fill_gallons:
@@ -202,8 +253,6 @@ input_number:
     mode: slider
     icon: mdi:water-plus
 
-
-
   # # 💧 Last Fill Gallons Tracker
   # outside_tank_last_fill_gallons:
   #   name: "Outside Tank Last Fill Gallons"
@@ -233,10 +282,12 @@ input_number:
     unit_of_measurement: "ml"
     mode: slider
 
-
-# Added 25-08-04 to set a watchdog for autofill 
+#------------------------------------------------------------------------------
+# Input Boolean Helpers
+#------------------------------------------------------------------------------
 input_boolean:
+  # Added 25-08-04 to set a watchdog for autofill 
   allow_auto_fill:
     name: Allow Auto Fill Trigger
-    initial: off
+    initial: false
     icon: mdi:check-circle-outline
