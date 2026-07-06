@@ -35,6 +35,17 @@
 #
 # Revision History
 #
+# 2026-07-05  GAL
+#   Added persistent last-fill gallons helper:
+#   input_number.outside_tank_last_fill_gallons.
+#   Added read-only display sensors for fill/dose timestamps and
+#   last-fill gallons so dashboards do not expose editable helpers.
+#   ESPHome writes last-fill gallons after a completed fill so the
+#   value survives ESP restarts.
+#   Updated ESPHome post-fill write targets to match existing
+#   outside_tank_* helper naming:
+#   input_datetime.outside_tank_fill_stopped.
+#
 # 2026-07-01  GAL
 #   Standardized package header and section layout.
 #
@@ -52,97 +63,172 @@
 #------------------------------------------------------------------------------
 template:
   - sensor:
-    # 📏 Gallons Calibration Sensor (From HX711 Raw Reading)
-    - name: "Outside Tank Gallons"
-      unique_id: outside_tank_gallons
-      unit_of_measurement: "gal"
-      state_class: measurement
-      #device_class: volume
-      state: >
-        {% set raw = states('sensor.hydroponics_patio_esp32_raw_hx711_sensor') | float(999900) %}
-        {% set all_points = [
-          (0, states('input_number.raw_00_gallons') | float(0)),
-          (5, states('input_number.raw_05_gallons') | float(0)),
-          (10, states('input_number.raw_10_gallons') | float(0)),
-          (15, states('input_number.raw_15_gallons') | float(0)),
-          (20, states('input_number.raw_20_gallons') | float(0)),
-          (25, states('input_number.raw_25_gallons') | float(0)),
-        ] %}
-        {% set points = all_points | rejectattr(1, 'equalto', 0) | list %}
-        {% if points | length < 2 %}
-          None
-        {% else %}
-          {% set sorted = points | sort(attribute=1) %}
-          {% set g_min, r_min = sorted[0] %}
-          {% set g_max, r_max = sorted[-1] %}
-          {% if raw <= r_min %}
-            {{ g_min }}
-          {% elif raw >= r_max %}
-            {{ g_max }}
+      # 📏 Gallons Calibration Sensor (From HX711 Raw Reading)
+      - name: "Outside Tank Gallons"
+        unique_id: outside_tank_gallons
+        unit_of_measurement: "gal"
+        state_class: measurement
+        #device_class: volume
+        state: >
+          {% set raw = states('sensor.hydroponics_patio_esp32_raw_hx711_sensor') | float(999900) %}
+          {% set all_points = [
+            (0, states('input_number.raw_00_gallons') | float(0)),
+            (5, states('input_number.raw_05_gallons') | float(0)),
+            (10, states('input_number.raw_10_gallons') | float(0)),
+            (15, states('input_number.raw_15_gallons') | float(0)),
+            (20, states('input_number.raw_20_gallons') | float(0)),
+            (25, states('input_number.raw_25_gallons') | float(0)),
+          ] %}
+          {% set points = all_points | rejectattr(1, 'equalto', 0) | list %}
+          {% if points | length < 2 %}
+            None
           {% else %}
-            {% for i in range(sorted | length - 1) %}
-              {% set g1, r1 = sorted[i] %}
-              {% set g2, r2 = sorted[i + 1] %}
-              {% if r1 <= raw <= r2 or r2 <= raw <= r1 %}
-                {% set slope = (g2 - g1) / (r2 - r1) %}
-                {% set gallons = g1 + slope * (raw - r1) %}
-                {{ gallons | round(1) }}
-              {% endif %}
-            {% endfor %}
+            {% set sorted = points | sort(attribute=1) %}
+            {% set g_min, r_min = sorted[0] %}
+            {% set g_max, r_max = sorted[-1] %}
+            {% if raw <= r_min %}
+              {{ g_min }}
+            {% elif raw >= r_max %}
+              {{ g_max }}
+            {% else %}
+              {% for i in range(sorted | length - 1) %}
+                {% set g1, r1 = sorted[i] %}
+                {% set g2, r2 = sorted[i + 1] %}
+                {% if r1 <= raw <= r2 or r2 <= raw <= r1 %}
+                  {% set slope = (g2 - g1) / (r2 - r1) %}
+                  {% set gallons = g1 + slope * (raw - r1) %}
+                  {{ gallons | round(1) }}
+                {% endif %}
+              {% endfor %}
+            {% endif %}
           {% endif %}
-        {% endif %}
 
-    # ⏳ Time Until Empty (Estimate)
-    - name: "Time Until Empty"
-      unique_id: outside_tank_time_to_empty
-      unit_of_measurement: "h"
-      icon: mdi:timer-sand
-      state_class: measurement
-      state: >
-        {% set gallons = states('sensor.outside_filtered_tank_gallons') | float(0) %}
-        {% set rate = states('sensor.outside_gallons_usage_rate') | float(0) %}
-        {% if gallons > 0 and rate > 0 %}
-          {{ (gallons / rate) | round(1) }}
-        {% else %}
-          {{ none }}
-        {% endif %}
+      # ⏳ Time Until Empty (Estimate)
+      - name: "Time Until Empty"
+        unique_id: outside_tank_time_to_empty
+        unit_of_measurement: "h"
+        icon: mdi:timer-sand
+        state_class: measurement
+        state: >
+          {% set gallons = states('sensor.outside_filtered_tank_gallons') | float(0) %}
+          {% set rate = states('sensor.outside_gallons_usage_rate') | float(0) %}
+          {% if gallons > 0 and rate > 0 %}
+            {{ (gallons / rate) | round(1) }}
+          {% else %}
+            {{ none }}
+          {% endif %}
 
-    # 📅 Predicted Empty Timestamp
-    - name: "Outside Tank Predicted Empty"
-      unique_id: outside_tank_predicted_empty
-      icon: mdi:clock-alert
-      device_class: timestamp
-      state: >
-        {% set rate = states('sensor.tank_drain_rate') | float(0) %}
-        {% set gallons = states('sensor.outside_tank_gallons') | float(0) %}
-        {% set last_str = states('input_datetime.last_outside_fill') %}
-        {% set last_fill = strptime(last_str, '%Y-%m-%d %H:%M:%S') if last_str not in ['unknown', 'unavailable', 'none'] else none %}
-        {% set elapsed = (now() - last_fill).total_seconds() if last_fill else 0 %}
-        {% set target_gallons = 8.0 %}
-        {% set delta_gallons = gallons - target_gallons %}
+      # 📅 Predicted Empty Timestamp
+      - name: "Outside Tank Predicted Empty"
+        unique_id: outside_tank_predicted_empty
+        icon: mdi:clock-alert
+        device_class: timestamp
+        state: >
+          {% set rate = states('sensor.tank_drain_rate') | float(0) %}
+          {% set gallons = states('sensor.outside_tank_gallons') | float(0) %}
+          {% set last_str = states('input_datetime.last_outside_fill') %}
+          {% set last_fill = strptime(last_str, '%Y-%m-%d %H:%M:%S') if last_str not in ['unknown', 'unavailable', 'none'] else none %}
+          {% set elapsed = (now() - last_fill).total_seconds() if last_fill else 0 %}
+          {% set target_gallons = 8.0 %}
+          {% set delta_gallons = gallons - target_gallons %}
 
-        {% if rate > 0 and delta_gallons > 0 and elapsed > 21600 %}
-          {{ (now() + timedelta(hours=delta_gallons / rate)).isoformat() }}
-        {% else %}
-          {{ none }}
-        {% endif %}
+          {% if rate > 0 and delta_gallons > 0 and elapsed > 21600 %}
+            {{ (now() + timedelta(hours=delta_gallons / rate)).isoformat() }}
+          {% else %}
+            {{ none }}
+          {% endif %}
 
+      # 🕓 Fill Duration in Minutes
+      - name: "Outside Tank Last Fill Duration"
+        unique_id: outside_tank_last_fill_duration
+        icon: mdi:timer-outline
+        unit_of_measurement: "min"
+        state: >
+          {% set start = states('input_datetime.outside_tank_fill_started') %}
+          {% set end = states('input_datetime.outside_tank_fill_stopped') %}
+          {% if start not in ['unknown', 'unavailable'] and end not in ['unknown', 'unavailable'] %}
+            {% set s = strptime(start, '%Y-%m-%d %H:%M:%S') %}
+            {% set e = strptime(end, '%Y-%m-%d %H:%M:%S') %}
+            {{ ((e - s).total_seconds() / 60) | round(1) }}
+          {% else %}
+            none
+          {% endif %}
 
-    # 🕓 Fill Duration in Minutes
-    - name: "Outside Tank Last Fill Duration"
-      unique_id: outside_tank_last_fill_duration
-      icon: mdi:timer-outline
-      unit_of_measurement: "min"
-      state: >
-        {% set start = states('input_datetime.outside_tank_fill_started') %}
-        {% set end = states('input_datetime.outside_tank_fill_stopped') %}
-        {% if start not in ['unknown', 'unavailable'] and end not in ['unknown', 'unavailable'] %}
-          {% set s = strptime(start, '%Y-%m-%d %H:%M:%S') %}
-          {% set e = strptime(end, '%Y-%m-%d %H:%M:%S') %}
-          {{ ((e - s).total_seconds() / 60) | round(1) }}
-        {% else %}
-          none
-        {% endif %}
+      # ─────────────────────────────────────────────────────────
+      # Outside Tank Last Fill Gallons Display
+      # Read-only dashboard sensor backed by persistent helper:
+      # input_number.outside_tank_last_fill_gallons
+      # ─────────────────────────────────────────────────────────
+      - name: "Outside Tank Last Fill Gallons Display"
+        unique_id: outside_tank_last_fill_gallons_display
+        unit_of_measurement: "gal"
+        icon: mdi:water
+        state: >
+          {{ states('input_number.outside_tank_last_fill_gallons') | float(0) | round(2) }}
+
+      # ─────────────────────────────────────────────────────────
+      # Outside Tank Fill Started Display
+      # Read-only sensor backed by fill-start helper:
+      # input_datetime.outside_tank_fill_started
+      # ─────────────────────────────────────────────────────────
+      - name: "Outside Tank Fill Started Display"
+        unique_id: outside_tank_fill_started_display
+        icon: mdi:clock-start
+        state: >
+          {% set dt = states('input_datetime.outside_tank_fill_started') %}
+          {% if dt in ['unknown', 'unavailable', 'none'] %}
+            unknown
+          {% else %}
+            {{ as_timestamp(dt) | timestamp_custom('%-m/%-d/%Y %-I:%M %p') }}
+          {% endif %}
+
+      # ─────────────────────────────────────────────────────────
+      # Outside Tank Fill Stopped Display
+      # Read-only sensor backed by fill-stop helper:
+      # input_datetime.outside_tank_fill_stopped
+      # ─────────────────────────────────────────────────────────
+      - name: "Outside Tank Fill Stopped Display"
+        unique_id: outside_tank_fill_stopped_display
+        icon: mdi:clock-end
+        state: >
+          {% set dt = states('input_datetime.outside_tank_fill_stopped') %}
+          {% if dt in ['unknown', 'unavailable', 'none'] %}
+            unknown
+          {% else %}
+            {{ as_timestamp(dt) | timestamp_custom('%-m/%-d/%Y %-I:%M %p') }}
+          {% endif %}
+
+      # ─────────────────────────────────────────────────────────
+      # Outside Tank Last Dose A Display
+      # Read-only sensor backed by helper:
+      # input_datetime.last_outside_dose_a
+      # ─────────────────────────────────────────────────────────
+      - name: "Outside Tank Last Dose A Display"
+        unique_id: outside_tank_last_dose_a_display
+        icon: mdi:clock-outline
+        state: >
+          {% set dt = states('input_datetime.last_outside_dose_a') %}
+          {% if dt in ['unknown', 'unavailable', 'none'] %}
+            unknown
+          {% else %}
+            {{ as_timestamp(dt) | timestamp_custom('%-m/%-d/%Y %-I:%M %p') }}
+          {% endif %}
+
+      # ─────────────────────────────────────────────────────────
+      # Outside Tank Last Dose B Display
+      # Read-only sensor backed by helper:
+      # input_datetime.last_outside_dose_b
+      # ─────────────────────────────────────────────────────────
+      - name: "Outside Tank Last Dose B Display"
+        unique_id: outside_tank_last_dose_b_display
+        icon: mdi:clock-outline
+        state: >
+          {% set dt = states('input_datetime.last_outside_dose_b') %}
+          {% if dt in ['unknown', 'unavailable', 'none'] %}
+            unknown
+          {% else %}
+            {{ as_timestamp(dt) | timestamp_custom('%-m/%-d/%Y %-I:%M %p') }}
+          {% endif %}
 
 #------------------------------------------------------------------------------
 # Filter / Statistics Sensors
@@ -235,7 +321,7 @@ input_number:
     mode: slider
 
   # Threshold minimum gallons to trigger Auto-Fill
-  # System must be in auto mode to trigger. Added: 2025-08-01   
+  # System must be in auto mode to trigger. Added: 2025-08-01
   auto_fill_threshold_gallons:
     name: "Auto Fill Threshold"
     min: 5
@@ -254,13 +340,19 @@ input_number:
     icon: mdi:water-plus
 
   # # 💧 Last Fill Gallons Tracker
-  # outside_tank_last_fill_gallons:
-  #   name: "Outside Tank Last Fill Gallons"
-  #   min: 0
-  #   max: 30
-  #   step: 0.1
-  #   unit_of_measurement: "gal"
-  #   mode: box  # Use slider if preferred: mode: slider
+  # ─────────────────────────────────────────────────────────
+  # Last Completed Fill Gallons
+  # Stores the gallons added during the most recent completed
+  # fill cycle. Intended to preserve the last fill amount for
+  # dashboards and history after ESP or Home Assistant restarts.
+  # ─────────────────────────────────────────────────────────
+  outside_tank_last_fill_gallons:
+    name: "Outside Tank Last Fill Gallons"
+    min: 0
+    max: 30
+    step: 0.1
+    unit_of_measurement: "gal"
+    mode: box
 
   # record last volume dosed for pump A
   manual_dose_outside_a_ml:
@@ -286,7 +378,7 @@ input_number:
 # Input Boolean Helpers
 #------------------------------------------------------------------------------
 input_boolean:
-  # Added 25-08-04 to set a watchdog for autofill 
+  # Added 25-08-04 to set a watchdog for autofill
   allow_auto_fill:
     name: Allow Auto Fill Trigger
     initial: false

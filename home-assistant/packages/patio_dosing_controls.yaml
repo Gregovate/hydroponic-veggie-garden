@@ -25,7 +25,7 @@
 #   is circulating. This is independent of the automatic refill controller.
 #
 # Control Strategy:
-#   • Current production auto-dose logic uses raw TDS probe voltage.
+#   • Current production auto-dose logic uses raw TDS probe voltage.mode
 #   • Outside Estimated EC provides a live engineering estimate of
 #     reservoir EC for dashboard monitoring and comparison against
 #     handheld EC reference measurements.
@@ -543,21 +543,25 @@ input_number:
     mode: box
 
   # ─────────────────────────────────────────────────────────────
-  # TDS Reference Reading Entry
+  # EC / TDS Reference Reading Entry
+  #
   # Purpose:
-  # - Manual EC/ppm meter value entered by operator.
-  # - Node-RED captures this with current raw TDS voltage.
-  # - Data is logged to hydro_tds_reference_reading.
-  # - This is a reference log, not a fixed calibration table.
+  # - Manual handheld meter reading entered by the operator.
+  # - Entity ID is retained for production compatibility with
+  #   Node-RED flows, dashboards, and history workflows.
+  # - Measurement scale is stored separately by
+  #   input_select.outside_tds_meter_units.
+  # - The Bluelab Truncheon is read from the flashing indicator scale.
+  # - EC readings are entered to one decimal place.
+  # - If two indicators flash, enter the midpoint between them.
   # ─────────────────────────────────────────────────────────────
 
   outside_tds_meter_entry:
-    name: Outside TDS Meter Entry
-    unit_of_measurement: "ppm"
+    name: Outside Meter Reading
     icon: mdi:meter-electric-outline
     min: 0
-    max: 5000
-    step: 10
+    max: 5
+    step: 0.1
     mode: box
 
 # Buttons to reset Total Dosed amount when a full bottle is installed

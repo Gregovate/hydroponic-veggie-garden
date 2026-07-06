@@ -1,27 +1,58 @@
+#==============================================================================
 # hydroponics-patio-esp32.yaml
-# Created for D1 mini 23-06-16
-# Changed GPIO pins for HX711
-# Added outputs for 3 relays to control water level & dosing pumps
-# Rebuilt scale with new sensors and Added tare button 25-07-12
-# Removed tare button added 25-07-12 on 25-07-13
-# removed Tank Gallon Calculation 25-07-15 
-# Converted to ESP32 25-07-26
-# Added Inline comments during debuging
-# Tested and functional 25-07-29
-# Adding Dosing History Sensors for tracking 25-08-01
-# ✅ ID Replacements 25-08-03
-# Old ID	New ID
-# last_pump_a_runtime	pump_a_runtime_sensor
-# last_pump_b_runtime	pump_b_runtime_sensor
-# last_dose_a_ml	dose_a_ml
-# last_dose_b_ml	dose_b_ml
-# override_a_remaining_time	pump_a_runtime
-# override_b_remaining_time	pump_b_runtime
-# dose_timer_a	REMOVE (use runtime accumulation)
-# dose_timer_b	REMOVE (use runtime accumulation)
-# current_dose_ml	dose_a_ml (and dose_b_ml)
-# Fixed ESP-Override Dosing Interval 25-08-04
-# removed hard top-off line 574 25-08-04
+#
+# Project: Hydroponics Veggie Garden
+# Controller: ESP32 DevKit
+#
+# Purpose:
+#   Controls the outside hydroponics system including:
+#     • Tank fill control
+#     • Nutrient dosing (Auto / Manual / ESP-Override)
+#     • HX711 tank scale
+#     • Flow meter measurement
+#     • ADS1115 EC/TDS measurement
+#     • Home Assistant state synchronization
+#
+# Revision History
+#
+# 2026-07-05  GAL
+#   Fixed Home Assistant helper naming for persistent fill-cycle data.
+#   Updated ESPHome post-fill service calls to use:
+#     • input_datetime.outside_tank_fill_stopped
+#     • input_number.outside_tank_last_fill_gallons
+#   Enables preservation of last completed fill information across ESP restarts.
+#
+# 2025-08-04  GAL
+#   Fixed ESP-Override dosing interval.
+#   Removed hard top-off logic.
+#
+# 2025-08-03  GAL
+#   Standardized dosing sensor IDs.
+#
+# 2025-08-01  GAL
+#   Added dosing history sensors.
+#
+# 2025-07-29  GAL
+#   Added inline documentation during controller debugging.
+#   Verified stable operation.
+#
+# 2025-07-26  GAL
+#   Converted controller from D1 Mini to ESP32.
+#
+# 2025-07-15  GAL
+#   Removed tank gallon calculation from ESPHome.
+#   Moved tank volume calculation to Home Assistant.
+#
+# 2025-07-13  GAL
+#   Removed temporary tare button.
+#
+# 2025-07-12  GAL
+#   Rebuilt HX711 tank scale.
+#   Added temporary tare button.
+#
+# 2023-06-16  GAL
+#   Initial controller created.
+#==============================================================================
 
 esphome:
   name: hydroponics-patio-esp32
@@ -263,8 +294,9 @@ sensor:
       accuracy_decimals: 2
       filters:
         #- lambda: return x / 1690.0;  # 👈 Accurate calibration: 8450 pulses = 5 gallons
-        - lambda: return x / 1470.0;  # 2026-06-03 recalibration: ESP read 2.0 gal, actual was 2.3 gal 26-06-03
-
+        #- lambda: return x / 1470.0;  # 2026-06-03 recalibration: ESP read 2.0 gal, actual was 2.3 gal 26-06-03
+        - lambda: return x / 1690.0;  # GAL 2026-06-28: reverted; 1470 over-reported fill by ~15–18%.
+ 
   # TDS meter input via ADS1115 A0
   - platform: ads1115
     ads1115_id: ads1115_outside
@@ -717,7 +749,7 @@ interval:
             - homeassistant.service:
                 service: input_datetime.set_datetime
                 data:
-                  entity_id: input_datetime.tank_fill_stopped
+                  entity_id: input_datetime.outside_tank_fill_stopped
                 data_template:
                   datetime: !lambda |-
                     char buf[25];
@@ -728,7 +760,7 @@ interval:
             - homeassistant.service:
                 service: input_number.set_value
                 data:
-                  entity_id: input_number.tank_last_fill_gallons
+                  entity_id: input_number.outside_tank_last_fill_gallons
                 data_template:
                   value: !lambda 'return id(last_fill_gallons_ESP);'
 

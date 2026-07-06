@@ -1,0 +1,16 @@
+type: custom:button-card
+entity: input_boolean.hydroponics_outside_system
+name: Outside System
+icon: mdi:power
+show_state: true
+tap_action:
+  action: toggle
+styles:
+  card:
+    - height: 120px
+  icon:
+    - width: 42px
+  name:
+    - font-size: 18px
+  state:
+    - font-size: 15px

@@ -1,0 +1,263 @@
+square: false
+columns: 1
+type: grid
+title: Browse for Event
+cards:
+  - square: false
+    columns: 2
+    type: grid
+    cards:
+      - type: custom:button-card
+        name: Forward
+        icon: mdi:arrow-up
+        tap_action:
+          action: perform-action
+          perform_action: input_number.set_value
+          target:
+            entity_id: input_number.hydro_history_record_offset
+          data:
+            value: |
+              [[[
+                const offset = Number(states['input_number.hydro_history_record_offset'].state) || 0;
+                return Math.max(0, offset - 1);
+              ]]]
+        styles:
+          card:
+            - height: 80px
+          icon:
+            - width: 18px
+            - color: white
+          name:
+            - font-size: 18px
+            - font-weight: bold
+          grid:
+            - grid-template-areas: "\"i\" \"n\""
+            - grid-template-columns: 1fr
+            - grid-template-rows: 24px auto
+      - type: custom:button-card
+        name: Page Up
+        icon: mdi:arrow-up-bold
+        tap_action:
+          action: perform-action
+          perform_action: input_number.set_value
+          target:
+            entity_id: input_number.hydro_history_record_offset
+          data:
+            value: |
+              [[[
+                const offset = Number(states['input_number.hydro_history_record_offset'].state) || 0;
+                const page = Number(states['input_number.hydro_history_records_per_page'].state) || 3;
+                return Math.max(0, offset - page);
+              ]]]
+        styles:
+          card:
+            - height: 80px
+          icon:
+            - width: 18px
+            - color: white
+          name:
+            - font-size: 18px
+            - font-weight: bold
+          grid:
+            - grid-template-areas: "\"i\" \"n\""
+            - grid-template-columns: 1fr
+            - grid-template-rows: 24px auto
+      - type: custom:button-card
+        name: Back
+        icon: mdi:arrow-down
+        tap_action:
+          action: perform-action
+          perform_action: input_number.set_value
+          target:
+            entity_id: input_number.hydro_history_record_offset
+          data:
+            value: |
+              [[[
+                const offset = Number(states['input_number.hydro_history_record_offset'].state) || 0;
+                return offset + 1;
+              ]]]
+        styles:
+          card:
+            - height: 80px
+          icon:
+            - width: 18px
+            - color: white
+          name:
+            - font-size: 18px
+            - font-weight: bold
+          grid:
+            - grid-template-areas: "\"i\" \"n\""
+            - grid-template-columns: 1fr
+            - grid-template-rows: 24px auto
+      - type: custom:button-card
+        name: Page Down
+        icon: mdi:arrow-down-bold
+        tap_action:
+          action: perform-action
+          perform_action: input_number.set_value
+          target:
+            entity_id: input_number.hydro_history_record_offset
+          data:
+            value: |
+              [[[
+                const offset = Number(states['input_number.hydro_history_record_offset'].state) || 0;
+                const page = Number(states['input_number.hydro_history_records_per_page'].state) || 3;
+                return offset + page;
+              ]]]
+        styles:
+          card:
+            - height: 80px
+          icon:
+            - width: 18px
+            - color: white
+          name:
+            - font-size: 18px
+            - font-weight: bold
+          grid:
+            - grid-template-areas: "\"i\" \"n\""
+            - grid-template-columns: 1fr
+            - grid-template-rows: 24px auto
+  - square: false
+    type: grid
+    columns: 1
+    title: Select Event Below
+    cards:
+      - type: custom:button-card
+        show_icon: false
+        show_label: true
+        show_state: false
+        name: |
+          [[[
+            const r = states['sensor.hydro_recent_activity_text'].attributes.records?.[0];
+            return r?.card_title || 'No record';
+          ]]]
+        label: |
+          [[[
+            const r = states['sensor.hydro_recent_activity_text'].attributes.records?.[0];
+            return r?.card_label || '';
+          ]]]
+        tap_action:
+          action: call-service
+          service: input_text.set_value
+          target:
+            entity_id: input_text.hydro_history_selected_event_id
+          data:
+            value: |
+              [[[
+                const r = states['sensor.hydro_recent_activity_text'].attributes.records?.[0];
+                return r?.select_id || '';
+              ]]]
+        styles:
+          card:
+            - min-height: 125px
+            - padding: 12px
+          grid:
+            - grid-template-areas: "\"n\" \"l\""
+            - grid-template-columns: 1fr
+            - grid-template-rows: min-content 1fr
+          name:
+            - justify-self: start
+            - font-size: 18px
+            - font-weight: bold
+          label:
+            - justify-self: start
+            - text-align: left
+            - white-space: pre-line
+            - font-size: 14px
+            - line-height: 1.35
+      - type: custom:button-card
+        show_icon: false
+        show_label: true
+        show_state: false
+        name: |
+          [[[
+            const r = states['sensor.hydro_recent_activity_text'].attributes.records?.[1];
+            return r?.card_title || 'No record';
+          ]]]
+        label: |
+          [[[
+            const r = states['sensor.hydro_recent_activity_text'].attributes.records?.[1];
+            return r?.card_label || '';
+          ]]]
+        tap_action:
+          action: call-service
+          service: input_text.set_value
+          target:
+            entity_id: input_text.hydro_history_selected_event_id
+          data:
+            value: |
+              [[[
+                const r = states['sensor.hydro_recent_activity_text'].attributes.records?.[1];
+                return r?.select_id || '';
+              ]]]
+        styles:
+          card:
+            - min-height: 125px
+            - padding: 12px
+          grid:
+            - grid-template-areas: "\"n\" \"l\""
+            - grid-template-columns: 1fr
+            - grid-template-rows: min-content 1fr
+          name:
+            - justify-self: start
+            - font-size: 18px
+            - font-weight: bold
+          label:
+            - justify-self: start
+            - text-align: left
+            - white-space: pre-line
+            - font-size: 14px
+            - line-height: 1.35
+      - type: custom:button-card
+        show_icon: false
+        show_label: true
+        show_state: false
+        name: |
+          [[[
+            const r = states['sensor.hydro_recent_activity_text'].attributes.records?.[2];
+            return r?.card_title || 'No record';
+          ]]]
+        label: |
+          [[[
+            const r = states['sensor.hydro_recent_activity_text'].attributes.records?.[2];
+            return r?.card_label || '';
+          ]]]
+        tap_action:
+          action: call-service
+          service: input_text.set_value
+          target:
+            entity_id: input_text.hydro_history_selected_event_id
+          data:
+            value: |
+              [[[
+                const r = states['sensor.hydro_recent_activity_text'].attributes.records?.[2];
+                return r?.select_id || '';
+              ]]]
+        styles:
+          card:
+            - min-height: 125px
+            - padding: 12px
+          grid:
+            - grid-template-areas: "\"n\" \"l\""
+            - grid-template-columns: 1fr
+            - grid-template-rows: min-content 1fr
+          name:
+            - justify-self: start
+            - font-size: 18px
+            - font-weight: bold
+          label:
+            - justify-self: start
+            - text-align: left
+            - white-space: pre-line
+            - font-size: 14px
+            - line-height: 1.35
+  - type: entities
+    title: Add Note to Selected Event
+    show_header_toggle: false
+    entities:
+      - entity: input_text.hydro_history_selected_event_id
+        name: Selected Event ID
+      - entity: input_text.hydro_history_operator_note
+        name: Operator Note
+      - entity: input_button.hydro_history_save_operator_note
+        name: Save Note

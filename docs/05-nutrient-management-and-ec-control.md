@@ -97,54 +97,89 @@ Explain how these measurements will be used to improve calibration over time.
 
 ---
 
-# Automatic Fill Dosing
+## Controller Operating Modes
 
-(TODO)
+The outside hydroponics controller supports three operating modes. Each mode
+defines who is responsible for controlling water and nutrient addition.
 
-Describe the automatic nutrient replacement performed after a refill event.
+### 🤖 Auto Fill - Auto Dose
 
-Topics:
+**Purpose**
 
-- Calculate gallons added
-- Calculate nutrient dose
-- Dose Part A
-- Dose Part B
-- Mixing delay
-- Event logging
+Fully automatic operation.
 
----
+**Operator Responsibilities**
 
-# Automatic EC Maintenance Dosing
+- Configure the Auto Fill Threshold.
+- Configure the Tank Full Target.
 
-(TODO)
+**Controller Responsibilities**
 
-Describe the maintenance dosing algorithm.
-
-Topics:
-
-- Monitor probe voltage
-- Minimum threshold
-- Dose increment
-- Mixing period
-- Recheck
-- Repeat if necessary
-- Maximum safe limit
-- Stop conditions
+- Detect low tank level.
+- Wait for the debounce period.
+- Schedule the automatic fill.
+- Fill the tank to the configured target.
+- Calculate nutrient requirements based on water added.
+- Automatically dose Parts A and B.
+- Record the completed cycle.
+- Generate notifications.
 
 ---
 
-# Manual Dosing
+### 🧪 Manual Fill - Auto Dose
 
-(TODO)
+**Purpose**
 
-Describe manual nutrient additions.
+Semi-automatic operation.
 
-Topics:
+The operator decides how much water to add. The controller automatically
+calculates and injects the required nutrients.
 
-- Manual override
-- Maintenance operations
-- Initial startup
-- Emergency correction
+**Operator Responsibilities**
+
+- Specify the desired fill amount.
+- Start the fill.
+
+**Controller Responsibilities**
+
+- Measure water added.
+- Calculate nutrient requirements.
+- Automatically dose Parts A and B.
+- Record the completed cycle.
+- Generate notifications.
+
+---
+
+### 🟥 ESP-Override
+
+**Purpose**
+
+Manual service and maintenance mode.
+
+Automation is intentionally bypassed. The controller functions only as a
+hardware interface.
+
+**Operator Responsibilities**
+
+- Start and stop fills.
+- Manually dose Part A.
+- Manually dose Part B.
+- Determine all quantities and timing.
+
+**Controller Responsibilities**
+
+- Operate pumps and valves.
+- Record manual events when appropriate.
+
+---
+
+### Summary
+
+| Mode | Water Control | Nutrient Control | Typical Use |
+|------|---------------|------------------|-------------|
+| **Auto Fill - Auto Dose** | Automatic | Automatic | Normal operation |
+| **Manual Fill - Auto Dose** | Manual | Automatic | Partial refills |
+| **ESP-Override** | Manual | Manual | Service, testing, calibration |
 
 ---
 

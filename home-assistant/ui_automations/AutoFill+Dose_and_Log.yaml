@@ -1,0 +1,87 @@
+alias: 🤖 Auto Fill + Dose and Log
+description: >
+  Handles auto fill start and logging when the ESP fill completes. Triggers
+  after 30 min delay when the fill gate is set. Updated with unified file log
+  script 25-08-05. Original Script.
+triggers:
+  - entity_id: input_boolean.allow_auto_fill
+    to: "on"
+    for: "00:30:00"
+    id: fill_delay_complete
+    trigger: state
+  - entity_id: switch.hydroponics_patio_esp32_water_fill_solenoid
+    from: "on"
+    to: "off"
+    id: fill_stopped
+    trigger: state
+conditions:
+  - condition: state
+    entity_id: input_select.hydroponics_outside_control_mode
+    state: Auto
+  - condition: state
+    entity_id: input_boolean.hydroponics_outside_system
+    state: "on"
+actions:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'fill_delay_complete' }}"
+        sequence:
+          - alias: Start ESP Fill (Auto Mode)
+            target:
+              entity_id: button.hydroponics_patio_esp32_start_manual_fill
+            action: button.press
+            data: {}
+          - alias: Timestamp fill start
+            target:
+              entity_id: input_datetime.outside_tank_fill_started
+            data:
+              datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+            action: input_datetime.set_datetime
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'fill_stopped' }}"
+        sequence:
+          - alias: Timestamp fill stop
+            target:
+              entity_id: input_datetime.outside_tank_fill_stopped
+            data:
+              datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+            action: input_datetime.set_datetime
+          - alias: Notify fill complete
+            data:
+              title: 🤖 Auto Fill Logged
+              message: >
+                {{ fill_gal }} gallons filled on {{ short_date_12hr }}. Mode:
+                Auto   Dose A: {{ dose_a }} mL   Dose B: {{ dose_b }} mL
+            action: persistent_notification.create
+          - delay: "00:00:02"
+          - alias: Log to CSV file (direct write AutoFill+Dose)
+            action: notify.send_message
+            target:
+              entity_id: notify.file_2
+            data:
+              message: >-
+                ,{{ short_date_12hr }},FILL,outside,{{ control_mode }}, {{
+                fill_gal }},{{ dose_a }},{{ dose_b }}, {{ tds_before }},,{{
+                control_mode }} fill started
+          - alias: Reset Auto Fill Gate
+            target:
+              entity_id: input_boolean.allow_auto_fill
+            action: input_boolean.turn_off
+            data: {}
+variables:
+  fill_gal: >-
+    {{ states('sensor.hydroponics_patio_esp32_fill_gallons') | float(0) |
+    round(2) }}
+  dose_a: >-
+    {{ states('sensor.hydroponics_patio_esp32_dose_a_ml') | float(0) | round(2)
+    }}
+  dose_b: >-
+    {{ states('sensor.hydroponics_patio_esp32_dose_b_ml') | float(0) | round(2)
+    }}
+  tds_before: "{{ states('sensor.hydroponics_patio_esp32_tds_raw') | float(0) | round(3) }}"
+  control_mode: "{{ states('input_select.hydroponics_outside_control_mode') | lower }}"
+  short_date_12hr: "{{ now().strftime('%Y-%m-%d %I:%M %p') }}"
+  short_date_24hr: "{{ now().strftime('%Y-%m-%d %H:%M') }}"
+mode: single

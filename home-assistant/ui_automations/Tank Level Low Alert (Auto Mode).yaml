@@ -1,0 +1,54 @@
+alias: 🤖 Tank Level Low Alert (Auto Mode)
+description: >
+  Triggers when tank stays below threshold for 5 minutes. Notifies user of
+  pending auto fill and sets allow_auto_fill flag — only if the full target is
+  above the threshold.
+triggers:
+  - value_template: |
+      {{ states('sensor.outside_tank_gallons') | float(100) <
+         states('input_number.auto_fill_threshold_gallons') | float(5) }}
+    for:
+      minutes: 5
+    trigger: template
+conditions:
+  - condition: state
+    entity_id: input_select.hydroponics_outside_control_mode
+    state: Auto
+  - condition: state
+    entity_id: input_boolean.hydroponics_outside_system
+    state: "on"
+  - condition: state
+    entity_id: input_boolean.allow_auto_fill
+    state: "off"
+  - condition: template
+    value_template: |
+      {{ states('input_number.tank_full_target') | float >
+         states('input_number.auto_fill_threshold_gallons') | float }}
+actions:
+  - alias: Set Fill Amount for ESP
+    target:
+      entity_id: input_number.outside_manual_fill_gallons
+    data:
+      value: "{{ fill_amt }}"
+    action: input_number.set_value
+  - alias: Enable Auto Fill Gate
+    target:
+      entity_id: input_boolean.allow_auto_fill
+    action: input_boolean.turn_on
+  - alias: Notify user of scheduled auto fill
+    data:
+      title: 🤖 Auto Fill Scheduled
+      message: >
+        Tank is low ({{ filtered_gal }} gal) as of {{ now_dt }}. Auto fill and
+        dosing will begin at {{ eta_dt }} unless canceled.
+
+        👉 To cancel, turn **Off** the toggle: `input_boolean.allow_auto_fill`
+    action: persistent_notification.create
+variables:
+  filtered_gal: "{{ states('sensor.outside_tank_gallons') | float(0) | round(2) }}"
+  current_gal: "{{ states('sensor.outside_tank_gallons') | float(0) | round(2) }}"
+  full_target: "{{ states('input_number.tank_full_target') | float(0) }}"
+  fill_amt: "{{ ([full_target - current_gal, 0] | max) | round(2) }}"
+  now_dt: "{{ now().strftime('%A, %B %d at %I:%M %p') }}"
+  eta_dt: "{{ (now() + timedelta(minutes=30)).strftime('%A, %B %d at %I:%M %p') }}"
+mode: single
