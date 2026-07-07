@@ -181,7 +181,7 @@
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
         "name": "Hydroponics Cycle Manager",
-        "func": "const entity = msg.topic;\nconst state = msg.payload;\n\nlet cycle = flow.get(\"outside_pending_cycle\") || null;\n\nfunction nowIso() {\n    return new Date().toISOString();\n}\n\nfunction normalizeMode(value) {\n    const s = String(value || \"unknown\").trim();\n    if (s === \"Auto\") return \"auto\";\n    if (s === \"Manual\") return \"manual\";\n    if (s === \"ESP-Override\") return \"esp-override\";\n    return s.toLowerCase();\n}\n\nfunction newCycle(eventType) {\n    return {\n        started_at: nowIso(),\n\n        // Must come from HA control mode, not hardcoded.\n        mode: normalizeMode(msg.control_mode),\n\n        source: \"outside\",\n        location: \"patio\",\n        device: \"node_red_cycle_manager\",\n        event_type: eventType,\n\n        system_gallons: null,\n        gallons_added: null,\n\n        dose_a_ml: null,\n        dose_b_ml: null,\n\n        tds_before: null,\n        tds_after: null,\n\n        fill_used: false,\n        pump_a_used: false,\n        pump_b_used: false\n    };\n}\n\n// -----------------------------\n// ACTION STARTED\n// -----------------------------\nif (state === \"on\") {\n\n    flow.set(\"outside_cycle_active\", true);\n\n    if (entity.includes(\"water_fill_solenoid\")) {\n        // Fill starts a fill cycle.\n        cycle = newCycle(\"FILL\");\n        cycle.fill_used = true;\n        msg.capture_before = true;\n        node.warn(\"NEW FILL CYCLE STARTED\");\n    }\n\n    else if (entity.includes(\"nutrient_pump_a\")) {\n        if (!cycle) {\n            // Dose-only cycle.\n            cycle = newCycle(\"DOSE\");\n            msg.capture_before = true;\n            node.warn(\"NEW DOSE CYCLE STARTED\");\n        } else {\n            // Pump A is joining an existing fill cycle.\n            node.warn(\"PUMP A JOINED ACTIVE CYCLE\");\n        }\n\n        cycle.pump_a_used = true;\n    }\n\n    else if (entity.includes(\"nutrient_pump_b\")) {\n        if (!cycle) {\n            cycle = newCycle(\"DOSE\");\n            msg.capture_before = true;\n            node.warn(\"NEW DOSE CYCLE STARTED FROM PUMP B\");\n        } else {\n            node.warn(\"PUMP B JOINED ACTIVE CYCLE\");\n        }\n\n        cycle.pump_b_used = true;\n    }\n\n    // If water was used, final event is FILL even if dosing also happened.\n    if (cycle.fill_used) {\n        cycle.event_type = \"FILL\";\n    }\n\n    flow.set(\"outside_pending_cycle\", cycle);\n    msg.payload = cycle;\n    return msg;\n}\n\n// -----------------------------\n// ACTION STOPPED\n// -----------------------------\nif (state === \"off\") {\n\n    if (!cycle) {\n        node.warn(\"OFF event with no active cycle\");\n        return null;\n    }\n\n    cycle.last_activity = nowIso();\n\n    if (entity.includes(\"water_fill_solenoid\")) {\n        msg.capture_fill_done = true;\n        node.warn(\"Fill completed\");\n    }\n\n    if (entity.includes(\"nutrient_pump_a\")) {\n        msg.capture_dose_a_done = true;\n        node.warn(\"Pump A completed\");\n    }\n\n    if (entity.includes(\"nutrient_pump_b\")) {\n        msg.capture_dose_b_done = true;\n        node.warn(\"Pump B completed\");\n    }\n\n    if (cycle.fill_used) {\n        cycle.event_type = \"FILL\";\n    }\n\n    flow.set(\"outside_pending_cycle\", cycle);\n    msg.payload = cycle;\n    return msg;\n}\n\nreturn null;",
+        "func": "const entity = msg.topic;\nconst state = msg.payload;\n\nlet cycle = flow.get(\"outside_pending_cycle\") || null;\n\nfunction nowIso() {\n    return new Date().toISOString();\n}\n\nfunction titleForCycle(mode, eventType) {\n\n    if (eventType === \"FILL\") {\n        if (mode === \"auto\")\n            return \"🤖 Auto Fill - Auto Dose Complete\";\n\n        if (mode === \"manual\")\n            return \"🧪 Manual Fill - Auto Dose Complete\";\n\n        if (mode === \"esp-override\")\n            return \"🟥 ESP-Override Fill Complete\";\n    }\n\n    // DOSE events\n    if (mode === \"esp-override\")\n        return \"🟥 ESP-Override Dose Complete\";\n\n    if (mode === \"auto\")\n        return \"🤖 Auto Maintenance Dose Complete\";\n\n    return \"🧪 Hydroponics Cycle Complete\";\n}\n\nfunction newCycle(eventType) {\n    return {\n        started_at: nowIso(),\n\n        // Must come from HA control mode, not hardcoded.\n        mode: normalizeMode(msg.control_mode),\n\n        source: \"outside\",\n        location: \"patio\",\n        device: \"node_red_cycle_manager\",\n        event_type: eventType,\n\n        system_gallons: null,\n        gallons_added: null,\n\n        dose_a_ml: null,\n        dose_b_ml: null,\n\n        tds_before: null,\n        tds_after: null,\n\n        fill_used: false,\n        pump_a_used: false,\n        pump_b_used: false\n    };\n}\n\n// -----------------------------\n// ACTION STARTED\n// -----------------------------\nif (state === \"on\") {\n\n    flow.set(\"outside_cycle_active\", true);\n\n    if (entity.includes(\"water_fill_solenoid\")) {\n        // Fill starts a fill cycle.\n        cycle = newCycle(\"FILL\");\n        cycle.fill_used = true;\n        msg.capture_before = true;\n        node.warn(\"NEW FILL CYCLE STARTED\");\n    }\n\n    else if (entity.includes(\"nutrient_pump_a\")) {\n        if (!cycle) {\n            // Dose-only cycle.\n            cycle = newCycle(\"DOSE\");\n            msg.capture_before = true;\n            node.warn(\"NEW DOSE CYCLE STARTED\");\n        } else {\n            // Pump A is joining an existing fill cycle.\n            node.warn(\"PUMP A JOINED ACTIVE CYCLE\");\n        }\n\n        cycle.pump_a_used = true;\n    }\n\n    else if (entity.includes(\"nutrient_pump_b\")) {\n        if (!cycle) {\n            cycle = newCycle(\"DOSE\");\n            msg.capture_before = true;\n            node.warn(\"NEW DOSE CYCLE STARTED FROM PUMP B\");\n        } else {\n            node.warn(\"PUMP B JOINED ACTIVE CYCLE\");\n        }\n\n        cycle.pump_b_used = true;\n    }\n\n    // If water was used, final event is FILL even if dosing also happened.\n    if (cycle.fill_used) {\n        cycle.event_type = \"FILL\";\n    }\n\n    flow.set(\"outside_pending_cycle\", cycle);\n    msg.payload = cycle;\n    return msg;\n}\n\n// -----------------------------\n// ACTION STOPPED\n// -----------------------------\nif (state === \"off\") {\n\n    if (!cycle) {\n        node.warn(\"OFF event with no active cycle\");\n        return null;\n    }\n\n    cycle.last_activity = nowIso();\n\n    if (entity.includes(\"water_fill_solenoid\")) {\n        msg.capture_fill_done = true;\n        node.warn(\"Fill completed\");\n    }\n\n    if (entity.includes(\"nutrient_pump_a\")) {\n        msg.capture_dose_a_done = true;\n        node.warn(\"Pump A completed\");\n    }\n\n    if (entity.includes(\"nutrient_pump_b\")) {\n        msg.capture_dose_b_done = true;\n        node.warn(\"Pump B completed\");\n    }\n\n    if (cycle.fill_used) {\n        cycle.event_type = \"FILL\";\n    }\n\n    flow.set(\"outside_pending_cycle\", cycle);\n    msg.payload = cycle;\n    return msg;\n}\n\nreturn null;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -197,7 +197,8 @@
                 "5138906fb57d9050",
                 "0b6e8f94a2664c2c"
             ]
-        ]
+        ],
+        "info": "Purpose\r\n\r\nMaintains the state of an active outside hydroponics control cycle.\r\n\r\nThe Cycle Manager groups multiple hardware events into a single logical\r\noperation and determines whether the completed operation represents an:\r\n\r\n• Auto Fill - Auto Dose cycle\r\n• Manual Fill - Auto Dose cycle\r\n• ESP-Override dose cycle\r\n\r\nResponsibilities\r\n\r\n• Creates a new cycle when the first device starts.\r\n• Tracks whether water fill, Pump A, and Pump B participated.\r\n• Captures the control mode at cycle start.\r\n• Preserves a single pending cycle object throughout the operation.\r\n• Generates capture requests for:\r\n  - Before-cycle measurements\r\n  - Fill completion\r\n  - Dose A completion\r\n  - Dose B completion\r\n• Classifies the final event as FILL or DOSE.\r\n• Provides the pending cycle to downstream logging and notification nodes.\r\n\r\nRevision History\r\n\r\n2026-07-06  GAL\r\n• Updated controller operating mode terminology:\r\n  - Auto Fill - Auto Dose\r\n  - Manual Fill - Auto Dose\r\n  - ESP-Override\r\n• normalizeMode() updated to recognize the new Home Assistant\r\n  control mode names while retaining backward compatibility\r\n  with the legacy \"Auto\" and \"Manual\" values.\r\n• Notification titles are now selected using both the controller\r\n  operating mode and the completed event type (FILL or DOSE),\r\n  allowing accurate user-facing notifications for each cycle.\r\n\r\n2026-07-05  GAL\r\n• Introduced unified pending cycle object.\r\n• FILL cycles take precedence when water and dosing occur\r\n  during the same operation.\r\n• Captures HA control mode at cycle start instead of using\r\n  hardcoded values.\r\n• Added before/fill/dose capture flags for downstream\r\n  processing.\r\n\r\n2026-06-30  GAL\r\n• Initial implementation."
     },
     {
         "id": "bebd493ef170ce35",
@@ -701,7 +702,7 @@
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
         "name": "Build Notification Text",
-        "func": "const e = flow.get(\"outside_pending_cycle\") || {};\n\nfunction fmt(v, d = 2) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(d) : \"n/a\";\n}\n\nconst mode = e.mode || \"unknown\";\nconst eventType = e.fill_used ? \"FILL\" : \"DOSE\";\n\nlet lines = [];\n\nlines.push(`${mode} ${eventType} completed`);\n\nif (e.gallons_added > 0) {\n    lines.push(`Water Added: ${fmt(e.gallons_added)} gal`);\n}\n\nif (e.dose_a_ml > 0) {\n    lines.push(`Dose A: ${fmt(e.dose_a_ml, 0)} mL`);\n}\n\nif (e.dose_b_ml > 0) {\n    lines.push(`Dose B: ${fmt(e.dose_b_ml, 0)} mL`);\n}\n\nlines.push(`System Volume: ${fmt(e.system_gallons, 1)} gal`);\n\nif (e.tds_before || e.tds_after) {\n    lines.push(`TDS: ${fmt(e.tds_before, 3)} → ${fmt(e.tds_after, 3)}`);\n}\n\nmsg.payload = lines.join(\"\\n\");\nreturn msg;",
+        "func": "// Build cycle completion notification.\n//\n// Uses the pending cycle captured by the Cycle Manager to generate the\n// user-facing notification text for completed hydroponics control cycles.\n//\n// FILL cycles report:\n//   • Water Added\n//   • Starting Volume\n//   • Calculated Final Volume\n//\n// DOSE cycles report:\n//   • System Volume\n//\n// Detailed node purpose and revision history are maintained in the\n// Node-RED Documentation tab.\n\nconst e = flow.get(\"outside_pending_cycle\") || {};\n\nfunction fmt(v, d = 2) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(d) : \"n/a\";\n}\n\nfunction titleForCycle(mode, eventType) {\n\n    if (eventType === \"FILL\") {\n        if (mode === \"auto\")\n            return \"🤖 Auto Fill - Auto Dose Complete\";\n\n        if (mode === \"manual\")\n            return \"🧪 Manual Fill - Auto Dose Complete\";\n\n        if (mode === \"esp-override\")\n            return \"🟥 ESP-Override Fill Complete\";\n    }\n\n    if (eventType === \"DOSE\") {\n        if (mode === \"auto\")\n            return \"🤖 Auto Maintenance Dose Complete\";\n\n        if (mode === \"esp-override\")\n            return \"🟥 ESP-Override Dose Complete\";\n    }\n\n    return \"🧪 Hydroponics Cycle Complete\";\n}\n\nconst mode = e.mode || \"unknown\";\nconst eventType = e.fill_used ? \"FILL\" : \"DOSE\";\n\nlet lines = [];\n\nmsg.title = titleForCycle(mode, eventType);\n\nif (eventType === \"FILL\") {\n    lines.push(\"Auto Fill - Auto Dose cycle completed\");\n} else if (mode === \"esp-override\") {\n    lines.push(\"ESP-Override DOSE completed\");\n} else {\n    lines.push(`${mode} ${eventType} completed`);\n}\n\nif (e.gallons_added > 0) {\n    lines.push(`Water Added: ${fmt(e.gallons_added)} gal`);\n}\n\nif (e.dose_a_ml > 0) {\n    lines.push(`Dose A: ${fmt(e.dose_a_ml, 0)} mL`);\n}\n\nif (e.dose_b_ml > 0) {\n    lines.push(`Dose B: ${fmt(e.dose_b_ml, 0)} mL`);\n}\n\nif (eventType === \"FILL\") {\n    lines.push(`Starting Volume: ${fmt(e.system_gallons, 1)} gal`);\n\n    const calculatedFinal = Number(e.system_gallons) + Number(e.gallons_added);\n    if (Number.isFinite(calculatedFinal)) {\n        lines.push(`Calculated Final Volume: ${fmt(calculatedFinal, 1)} gal`);\n    }\n} else {\n    lines.push(`System Volume: ${fmt(e.system_gallons, 1)} gal`);\n}\n\nif (e.tds_before || e.tds_after) {\n    lines.push(`TDS: ${fmt(e.tds_before, 3)} → ${fmt(e.tds_after, 3)}`);\n}\n\nmsg.payload = lines.join(\"\\n\");\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -714,7 +715,8 @@
             [
                 "notify_hydro_cycle_complete"
             ]
-        ]
+        ],
+        "info": "Purpose\r\n\r\nBuilds the user-facing completion notification summarizing a completed\r\nhydroponics control cycle.\r\n\r\nSupports:\r\n• Auto Fill - Auto Dose\r\n• Manual Fill - Auto Dose\r\n• ESP-Override dose cycles\r\n\r\nDisplays only the information relevant to the completed cycle, including\r\nwater added, nutrient doses, tank volume, and TDS before/after values.\r\n\r\nRevision History\r\n\r\n2026-07-06  GAL\r\n• Updated notification terminology to match the new controller\r\n  operating modes:\r\n  - Auto Fill - Auto Dose\r\n  - Manual Fill - Auto Dose\r\n  - ESP-Override\r\n• Notification titles are now selected using both the controller\r\n  operating mode and completed event type (FILL or DOSE).\r\n• FILL notifications display:\r\n  - Water Added\r\n  - Starting Volume\r\n  - Calculated Final Volume\r\n• DOSE notifications continue to display:\r\n  - System Volume\r\n\r\n2026-07-05  GAL\r\n• FILL notifications distinguish between:\r\n  - Starting Volume (pre-fill tank volume)\r\n  - Calculated Final Volume (Starting Volume + Water Added)\r\n• DOSE notifications continue to report current System Volume.\r\n\r\n2026-06-30  GAL\r\n• Initial implementation."
     },
     {
         "id": "7eabbb3955a2def6",
@@ -771,7 +773,7 @@
         "id": "notify_hydro_cycle_complete",
         "type": "api-call-service",
         "z": "3ec2ad8e53afdcdc",
-        "name": "Notify Maint Cycle",
+        "name": "Notify Cycle Complete",
         "server": "28f1afb.2a0725",
         "version": 7,
         "debugenabled": false,
@@ -781,7 +783,7 @@
         "deviceId": [],
         "entityId": [],
         "labelId": [],
-        "data": "{\n  \"title\": \"Maintenance Cycle Complete\",\n  \"message\": payload\n}",
+        "data": "{\t  \"title\": title,\t  \"message\": payload\t}",
         "dataType": "jsonata",
         "mergeContext": "",
         "mustacheAltTags": false,
@@ -790,13 +792,14 @@
         "blockInputOverrides": true,
         "domain": "persistent_notification",
         "service": "create",
-        "x": 2130,
+        "x": 2140,
         "y": 1240,
         "wires": [
             [
                 "87af5340f680e239"
             ]
-        ]
+        ],
+        "info": "Purpose\r\n\r\nSends the final user notification after a hydroponics control cycle\r\nhas completed.\r\n\r\nThe notification title is supplied by `msg.title`, and the notification\r\nbody is supplied by `msg.payload` from the Build Notification Text\r\nfunction.\r\n\r\nThis node does not determine notification content; it only delivers it.\r\n\r\nRevision History\r\n\r\n2026-07-06  GAL\r\n• Renamed node to \"Notify Cycle Complete.\"\r\n• Changed notification title from a hardcoded value to `msg.title`.\r\n• Supports dynamic titles for Auto Fill - Auto Dose,\r\n  Manual Fill - Auto Dose, and ESP-Override cycles.\r\n\r\n2026-06-30  GAL\r\n• Initial implementation."
     },
     {
         "id": "get_control_mode_state",
@@ -816,7 +819,7 @@
             {
                 "property": "control_mode",
                 "propertyType": "msg",
-                "value": "",
+                "value": "string",
                 "valueType": "entityState"
             }
         ],
@@ -871,7 +874,7 @@
         "charset": "UTF8"
     },
     {
-        "id": "e0431112902205fd",
+        "id": "e35a882de03d7eef",
         "type": "global-config",
         "env": [],
         "modules": {

@@ -422,11 +422,150 @@ ESPHome sensors must be treated as live/current-cycle values only.
 
 Persistent “last completed cycle” values need to be stored in Home Assistant helpers and displayed through read-only template sensors.
 
-Status: OPEN
+### Verification - 2026-07-06 Short Auto Fill
+
+Chronological test sequence:
+
+1. EC reference before fill:
+   - Time: 2026-07-06 08:33
+   - EC: 1.70
+   - Probe: 1.716 V
+   - Tank: 17.8 gal
+   - Temp: 67.2°F
+
+2. Auto Fill Scheduled notification:
+   - Tank low: 17.8 gal
+   - Fill scheduled for 09:00
+   - Notification worked, but wording should change from:
+     `Turn Off input_boolean.allow_auto_fill`
+     to:
+     `Turn Off Auto Fill Gate`
+
+3. Auto Fill - Auto Dose completed.
+
+4. Node-RED completion notification reported:
+   - Water Added: 4.28 gal
+   - Dose A: 43 mL
+   - Dose B: 43 mL
+   - Starting Volume: 17.7 gal
+   - Calculated Final Volume: 22.0 gal
+   - TDS: 1.735 → 1.706
+
+5. EC reference after fill:
+   - Time: 2026-07-06 09:14
+   - EC: 1.70
+   - Probe: 1.753 V
+   - Tank: 21.1 gal
+   - Temp: 67.8°F
+   - Note: After maintenance cycle complete on short autofill
+
+### Validation Result
+
+The stale **Auto Fill Logged** notification was successfully removed.
+
+Node-RED notification now correctly distinguishes:
+
+- Water Added
+- Starting Volume
+- Calculated Final Volume
+
+The notification still needs terminology cleanup:
+
+- Rename title from **Maintenance Cycle Complete**
+  to **Auto Fill - Auto Dose Complete** when event type is `FILL`.
+
+The calculated final volume was:
+
+`17.7 + 4.28 = 22.0 gal`
+
+Actual post-fill tank reading was:
+
+`21.1 gal`
+
+This difference should be noted but not treated as a failure yet because the tank scale may not have fully stabilized at notification time or the calculation uses pre-fill + flow-meter value rather than final tank weight.
+
+### Dashboard Observations During 2026-07-06 Auto Fill
+
+Screenshots captured the live dashboard state during the cycle.
+
+Observed sequence:
+
+1. Auto Fill Scheduled notification was correct, but wording should be updated:
+   - Current: `turn Off the toggle: input_boolean.allow_auto_fill`
+   - Preferred: `turn Off Auto Fill Gate`
+
+2. Fill start timestamp updated correctly at fill start.
+
+3. While filling, Fill Duration temporarily displayed a large negative value because:
+   - fill start had updated to the current cycle,
+   - fill stop still contained the previous cycle timestamp.
+
+4. After fill completed:
+   - Fill Ended updated correctly.
+   - Fill Duration corrected to 0.8 min.
+   - Gallons Measured showed 4.33 gal.
+   - Last Fill Gallons showed 4.28 gal.
+
+5. Auto dose sequence completed:
+   - Dose A: 42.79 mL
+   - Dose B: 42.79 mL
+   - Pump A Runtime eventually showed 26.99 s.
+   - Pump B Runtime eventually showed 26.00 s.
+   - Last Dose A and Last Dose B updated to 7/6/2026 9:01 AM.
 
 ### Status
 
-OPEN
+What was accomplished
+
+Controller Modes
+
+✅ Renamed operating modes to reflect actual behavior:
+Auto Fill - Auto Dose
+Manual Fill - Auto Dose
+ESP-Override
+✅ Updated dashboards.
+✅ Updated conditional cards.
+✅ Updated button-card colors.
+✅ Updated Node-RED mode normalization with backward compatibility.
+
+Flow-1 Cycle Manager
+
+✅ Proper documentation added.
+✅ Better separation of responsibilities.
+✅ Notification titles now driven by controller mode and event type.
+
+Notifications
+
+✅ Removed obsolete Auto Fill notification.
+✅ Removed legacy CSV write.
+✅ Fixed fill summary to distinguish:
+Water Added
+Starting Volume
+Calculated Final Volume
+
+Persistence
+
+✅ Last fill gallons now stored in a persistent HA helper.
+✅ ESPHome helper names corrected.
+✅ Identified the next phase of migrating "last completed cycle" values out of transient ESP sensors.
+
+Documentation
+
+✅ Node documentation standardized:
+Purpose
+Responsibilities (where appropriate)
+Revision History
+✅ ISSUE-002 is now largely verified with a real production fill.
+
+### Status
+
+VERIFIED - CLOSED
+
+All functional defects identified in ISSUE-002 have been corrected and
+verified during the 2026-07-06 production Auto Fill - Auto Dose cycle.
+
+Remaining enhancements have been moved to new iISSUE-008 to keep this issue
+focused on notification correctness and fill-cycle reporting.
 
 ---
 
@@ -572,21 +711,77 @@ Status: OPEN
 
 ## ISSUE-006 - Maintenance Auto Dose
 
-Priority: HIGH
+**Priority:** HIGH
 
-Automation disabled.
+### Current State
 
-Reason:
+The **Outside TDS Maintenance Auto Dose** automation has been **disabled**.
 
-Maintenance automation changed:
+### Reason
 
-Hydroponics Outside Control Mode to ESP Override
+During maintenance dosing, the automation changed:
 
-This cancelled scheduled Auto Fill.
+`Hydroponics Outside Control Mode` → **ESP Override**
 
-Maintenance controller requires redesign before being re-enabled.
+This unexpectedly cancelled the pending **Auto Fill** sequence, leaving the system in an incorrect operating state.
 
-Status: OPEN
+Because both the Maintenance Auto Dose automation and the Auto Fill controller use the same global Outside Control Mode for ownership, they can interfere with one another when either changes the mode.
+
+## Root Cause
+
+The disabled maintenance dosing automation directly changes the global Outside Control Mode from `Auto` to `ESP-Override` in order to run the dose pump buttons.
+
+This temporarily removes ownership from the Auto controller and can interrupt or cancel an active or scheduled Auto Fill cycle.
+
+Maintenance dosing should not change the global control mode.
+
+### Required Redesign
+
+The maintenance dosing controller must be redesigned so it:
+
+- Maintains minimum nutrient concentration while circulation is running.
+- Does **not** change the global Control Mode.
+- Operates independently of Auto Fill.
+- Can coexist safely with scheduled fills.
+- Coordinates ownership with the Auto Fill controller so fill and maintenance dosing cannot conflict or interrupt one another.
+- Preserves all existing safety interlocks (tank level, inventory, maximum TDS voltage, etc.).
+
+## Corrected Design Direction
+
+There is no separate maintenance controller.
+
+Maintenance Auto Dose should become another command path into the existing `patio_controller`.
+
+HA detects low TDS voltage
+HA sets requested A/B dose amount
+HA presses "maintenance dose request"
+patio_controller checks:
+  - system enabled
+  - mode is Auto
+  - fill not active
+  - dose pumps off
+  - tank volume valid
+  - inventory OK
+  - TDS below low threshold
+  - TDS below hard stop
+patio_controller runs A then B
+HA waits/mixes/rechecks
+
+Home Assistant may detect that maintenance dosing is needed, calculate/request the step dose amount, and start the maintenance cycle, but it should not take direct control of the system by switching to `ESP-Override`.
+
+The `patio_controller` must remain the single execution authority for all physical outputs.
+
+### Implementation Status
+
+- HA automation Outside TDS Maintenance Auto Dose updated but remains disabled.
+- `patio_dosing_controls.yaml` updated and Home Assistant reloaded.
+- Maintenance dose request helpers added to patio_dosing_controls.yaml
+- Automation no longer switches Outside Control Mode to `ESP-Override`.
+- ESPHome `patio_controller` maintenance dose request handler still needs to be added and validated.
+
+### Status
+
+Automation remains **disabled** until the maintenance dosing architecture is redesigned and validated.
 
 ---
 
@@ -669,3 +864,54 @@ Current inventory values require verification before permanent correction.
 This document is intentionally a working engineering notebook.
 
 Nothing contained here should be considered permanent design documentation until each issue has been fixed, tested, and verified.
+
+## ISSUE-008 - Auto Fill Cycle State Machine
+
+### Follow-Up UI Issue
+
+During an active fill, the Fill Duration display should avoid showing a negative value when the fill stop timestamp still belongs to the previous cycle.
+
+Possible fix:
+
+- If `outside_tank_fill_stopped` is older than `outside_tank_fill_started`, show:
+  - `Filling...`
+  - or current elapsed time since fill start
+  - or `unknown`
+
+Do not calculate duration using a stop timestamp from the previous fill.
+
+### Remaining Improvement - Auto Fill Cycle State Visibility
+
+During Auto Fill - Auto Dose, there is no clear operator feedback between:
+
+- fill completed
+- auto-dose started/completed
+- mixing dwell in progress
+- final TDS summary ready
+
+Needed:
+
+A visible cycle state such as:
+
+- Idle
+- Auto Fill Scheduled
+- Filling
+- Fill Complete - Dosing
+- Mixing / Waiting for TDS Stabilization
+- Cycle Complete
+- Fault / Interrupted
+
+Short-term improvement:
+
+Send one notification when fill completes:
+
+`Auto Fill Complete - Mixing`
+
+Example:
+
+```text
+Auto Fill completed.
+Water Added: 4.28 gal
+Dose A/B started or completed.
+Waiting 10 minutes for mixing before final cycle summary.
+```

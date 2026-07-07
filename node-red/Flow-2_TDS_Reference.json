@@ -79,7 +79,7 @@
         "y": 1540,
         "wires": [
             [
-                "tds_ref_get_gallons"
+                "tds_ref_get_estimated_ec"
             ]
         ]
     },
@@ -216,7 +216,7 @@
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
         "name": "Build TDS Reference INSERT SQL",
-        "func": "const now = Date.now();\nconst lastCapture = flow.get(\"outside_tds_reference_last_capture_ms\") || 0;\n\nconst LOCKOUT_MS = 30000;\n\nif (now - lastCapture < LOCKOUT_MS) {\n    node.warn(`Ignored duplicate TDS reference capture inside ${LOCKOUT_MS / 1000} second lockout.`);\n    return null;\n}\n\nflow.set(\"outside_tds_reference_last_capture_ms\", now);\n\nfunction cleanNumber(value) {\n    if (value === undefined || value === null) return null;\n    const n = parseFloat(String(value).replace(/[^0-9.\\-]/g, \"\"));\n    return Number.isFinite(n) ? n : null;\n}\n\nfunction sqlText(value) {\n    if (value === undefined || value === null) return \"NULL\";\n    const s = String(value).trim();\n    if (s.length === 0) return \"NULL\";\n    return \"'\" + s.replace(/'/g, \"''\").slice(0, 255) + \"'\";\n}\n\nconst voltage = cleanNumber(msg.tds_voltage);\nconst meterValue = cleanNumber(msg.meter_value);\nconst gallons = cleanNumber(msg.tank_gallons);\nconst waterTemp = cleanNumber(msg.water_temp_f);\nconst rainTotal = cleanNumber(msg.rain_total_in);\nconst previousRain = cleanNumber(msg.previous_rain_total);\nconst tankLength = cleanNumber(msg.tank_length_in);\nconst tankWidth = cleanNumber(msg.tank_width_in);\nconst captureFactor = cleanNumber(msg.rain_capture_factor) ?? 1.0;\n\nconst units = String(msg.meter_units || \"ppm\").trim();\nconst note = msg.reference_note;\n\nlet rainSince = null;\nlet rainAddedGallons = null;\n\nif (\n    rainTotal !== null &&\n    previousRain !== null &&\n    tankLength !== null &&\n    tankWidth !== null\n) {\n    rainSince = Math.max(0, rainTotal - previousRain);\n    rainAddedGallons = rainSince * tankLength * tankWidth / 231 * captureFactor;\n}\n\nif (voltage === null) {\n    node.error(\"TDS reference capture failed: invalid TDS voltage\", msg);\n    return null;\n}\n\nif (meterValue === null || meterValue <= 0) {\n    node.error(\"TDS reference capture failed: manual meter value is missing or invalid\", msg);\n    return null;\n}\n\nmsg.topic = `\nINSERT INTO hydro_tds_reference_reading\n    (\n        system_key,\n        probe_voltage,\n        meter_value,\n        meter_units,\n        tank_gallons,\n        water_temp_f,\n        rain_total_in,\n        rain_since_last_reference_in,\n        estimated_rain_added_gal,\n        note\n    )\nVALUES\n    (\n        'outside',\n        ${voltage.toFixed(3)},\n        ${meterValue.toFixed(2)},\n        ${sqlText(units)},\n        ${gallons === null ? \"NULL\" : gallons.toFixed(2)},\n        ${waterTemp === null ? \"NULL\" : waterTemp.toFixed(1)},\n        ${rainTotal === null ? \"NULL\" : rainTotal.toFixed(3)},\n        ${rainSince === null ? \"NULL\" : rainSince.toFixed(3)},\n        ${rainAddedGallons === null ? \"NULL\" : rainAddedGallons.toFixed(3)},\n        ${sqlText(note)}\n    );\n`;\n\nmsg.payload = {\n    system_key: \"outside\",\n    probe_voltage: voltage,\n    meter_value: meterValue,\n    meter_units: units,\n    tank_gallons: gallons,\n    water_temp_f: waterTemp,\n    rain_total_in: rainTotal,\n    rain_since_last_reference_in: rainSince,\n    estimated_rain_added_gal: rainAddedGallons,\n    note: note\n};\n\nreturn msg;",
+        "func": "// ─────────────────────────────────────────────────────────────\n// Build TDS Reference INSERT SQL\n//\n// Purpose:\n// - Captures a handheld EC/TDS reference reading.\n// - Stores the installed probe voltage, current Estimated EC,\n//   tank gallons, water temperature, rainfall context, and note.\n// - Estimated EC is stored as a snapshot of the Home Assistant\n//   calculation at capture time so model accuracy can be reviewed\n//   later even if the formula changes.\n// ─────────────────────────────────────────────────────────────\n\nconst now = Date.now();\nconst lastCapture = flow.get(\"outside_tds_reference_last_capture_ms\") || 0;\n\nconst LOCKOUT_MS = 30000;\n\nif (now - lastCapture < LOCKOUT_MS) {\n    node.warn(`Ignored duplicate TDS reference capture inside ${LOCKOUT_MS / 1000} second lockout.`);\n    return null;\n}\n\nflow.set(\"outside_tds_reference_last_capture_ms\", now);\n\nfunction cleanNumber(value) {\n    if (value === undefined || value === null) return null;\n    const n = parseFloat(String(value).replace(/[^0-9.\\-]/g, \"\"));\n    return Number.isFinite(n) ? n : null;\n}\n\nfunction sqlText(value) {\n    if (value === undefined || value === null) return \"NULL\";\n    const s = String(value).trim();\n    if (s.length === 0) return \"NULL\";\n    return \"'\" + s.replace(/'/g, \"''\").slice(0, 255) + \"'\";\n}\n\nconst voltage = cleanNumber(msg.tds_voltage);\nconst estimatedEc = cleanNumber(msg.estimated_ec);\nconst meterValue = cleanNumber(msg.meter_value);\nconst gallons = cleanNumber(msg.tank_gallons);\nconst waterTemp = cleanNumber(msg.water_temp_f);\nconst rainTotal = cleanNumber(msg.rain_total_in);\nconst previousRain = cleanNumber(msg.previous_rain_total);\nconst tankLength = cleanNumber(msg.tank_length_in);\nconst tankWidth = cleanNumber(msg.tank_width_in);\nconst captureFactor = cleanNumber(msg.rain_capture_factor) ?? 1.0;\n\nconst units = String(msg.meter_units || \"ppm\").trim();\nconst note = msg.reference_note;\n\nlet rainSince = null;\nlet rainAddedGallons = null;\n\nif (\n    rainTotal !== null &&\n    previousRain !== null &&\n    tankLength !== null &&\n    tankWidth !== null\n) {\n    rainSince = Math.max(0, rainTotal - previousRain);\n    rainAddedGallons = rainSince * tankLength * tankWidth / 231 * captureFactor;\n}\n\nif (voltage === null) {\n    node.error(\"TDS reference capture failed: invalid TDS voltage\", msg);\n    return null;\n}\n\nif (meterValue === null || meterValue <= 0) {\n    node.error(\"TDS reference capture failed: manual meter value is missing or invalid\", msg);\n    return null;\n}\n\nmsg.topic = `\nINSERT INTO hydro_tds_reference_reading\n    (\n        system_key,\n        probe_voltage,\n        estimated_ec,\n        meter_value,\n        meter_units,\n        tank_gallons,\n        water_temp_f,\n        rain_total_in,\n        rain_since_last_reference_in,\n        estimated_rain_added_gal,\n        note\n    )\nVALUES\n    (\n        'outside',\n        ${voltage.toFixed(3)},\n        ${estimatedEc === null ? \"NULL\" : estimatedEc.toFixed(2)},\n        ${meterValue.toFixed(2)},\n        ${sqlText(units)},\n        ${gallons === null ? \"NULL\" : gallons.toFixed(2)},\n        ${waterTemp === null ? \"NULL\" : waterTemp.toFixed(1)},\n        ${rainTotal === null ? \"NULL\" : rainTotal.toFixed(3)},\n        ${rainSince === null ? \"NULL\" : rainSince.toFixed(3)},\n        ${rainAddedGallons === null ? \"NULL\" : rainAddedGallons.toFixed(3)},\n        ${sqlText(note)}\n    );\n`;\n\nmsg.payload = {\n    system_key: \"outside\",\n    probe_voltage: voltage,\n    estimated_ec: estimatedEc,\n    meter_value: meterValue,\n    meter_units: units,\n    tank_gallons: gallons,\n    water_temp_f: waterTemp,\n    rain_total_in: rainTotal,\n    rain_since_last_reference_in: rainSince,\n    estimated_rain_added_gal: rainAddedGallons,\n    note: note\n};\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -230,7 +230,8 @@
                 "tds_ref_sql_preview",
                 "tds_ref_insert"
             ]
-        ]
+        ],
+        "info": "// ─────────────────────────────────────────────────────────────\r\n// Build TDS Reference INSERT SQL\r\n//\r\n// Purpose:\r\n// - Builds the SQL INSERT statement for a handheld EC/TDS\r\n//   reference measurement.\r\n// - Records the operating conditions at the moment the\r\n//   reference was taken.\r\n// - Provides the engineering dataset used to evaluate and\r\n//   improve the Estimated EC model.\r\n//\r\n// Database:\r\n//   hydro_tds_reference_reading\r\n//\r\n// Captured Data:\r\n// - Probe voltage\r\n// - Estimated EC (Home Assistant prediction)\r\n// - Handheld meter reading (ground truth)\r\n// - Meter units\r\n// - Tank gallons\r\n// - Water temperature\r\n// - Rainfall total\r\n// - Rainfall since previous reference\r\n// - Estimated rainwater added\r\n// - Operator note\r\n//\r\n// Notes:\r\n// - Estimated EC is stored as a snapshot of the controller's\r\n//   prediction at the time of the handheld measurement.\r\n// - This allows historical comparison of Estimated EC versus\r\n//   handheld EC even after the estimation model changes.\r\n// - Duplicate submissions are ignored for 30 seconds.\r\n// ─────────────────────────────────────────────────────────────"
     },
     {
         "id": "tds_ref_sql_preview",
@@ -645,6 +646,38 @@
         ]
     },
     {
+        "id": "tds_ref_get_estimated_ec",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get Estimated EC",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.outside_estimated_ec",
+        "state_type": "str",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "estimated_ec",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 190,
+        "y": 1620,
+        "wires": [
+            [
+                "tds_ref_get_gallons"
+            ]
+        ]
+    },
+    {
         "id": "28f1afb.2a0725",
         "type": "server",
         "name": "Home Assistant",
@@ -685,7 +718,7 @@
         "charset": "UTF8"
     },
     {
-        "id": "ea99b189b8e01ca5",
+        "id": "e1c85ccd7ffe9d2c",
         "type": "global-config",
         "env": [],
         "modules": {

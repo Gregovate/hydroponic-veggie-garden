@@ -1,0 +1,15 @@
+Use this instead to list likely helper entity IDs from the YAML:
+
+Get-ChildItem .\packages\hydroponics -Recurse -Include *.yaml,*.yml |
+Select-String -Pattern "^\s{2}[a-zA-Z0-9_]+:" |
+ForEach-Object {
+  "{0}:{1}: {2}" -f $_.Path, $_.LineNumber, $_.Line.Trim()
+}
+
+For just patio_controller.yaml:
+
+Select-String -Path .\packages\hydroponics\patio_controller.yaml `
+  -Pattern "^\s{2}[a-zA-Z0-9_]+:" |
+ForEach-Object {
+  "{0}: {1}" -f $_.LineNumber, $_.Line.Trim()
+}

@@ -1,8 +1,8 @@
 # Nutrient Management and EC Control
 
-**Revision:** 0.1  
-**Last Updated:** 2026-07-01  
-**Status:** Outline
+Revision: 0.2
+Last Updated: 2026-07-06
+Status: Draft
 
 ---
 
@@ -33,17 +33,143 @@ The nutrient management system is intended to:
 
 # Nutrient Management Philosophy
 
-(TODO)
+The nutrient management system is designed to maintain healthy nutrient
+concentrations while minimizing operator intervention and preventing
+over-dosing.
 
-Describe the overall nutrient management strategy.
+Unlike traditional hydroponic controllers that rely on calibrated EC probes and
+PID control, this system uses a staged engineering approach centered around a
+continuously monitored analog conductivity probe, periodic handheld EC
+validation, and conservative proportional maintenance dosing.
 
-Topics:
+## Design Objectives
 
-- Why EC matters
-- Plant nutrient requirements
-- Relationship between water volume and nutrient concentration
-- Continuous monitoring versus periodic validation
-- Long-term data collection
+The controller is intended to:
+
+- Maintain stable nutrient concentration during normal operation.
+- Automatically replace nutrients added during refill events.
+- Gradually restore nutrient concentration during circulation when EC declines.
+- Prevent excessive nutrient additions.
+- Record every nutrient addition for historical analysis.
+- Continuously improve probe calibration using field data.
+
+## Fill-Based Nutrient Replacement
+
+Whenever water is added to the system, the controller measures the actual gallons
+added.
+
+The patio_controller automatically calculates the required Part A and Part B
+nutrient additions using the configured nutrient ratio and injects both parts
+without operator intervention.
+
+This provides repeatable nutrient replacement after every fill event.
+
+## Maintenance Nutrient Control
+
+During normal circulation, plants continuously consume nutrients while water
+volume changes more slowly.
+
+The installed conductivity probe is continuously monitored for changes in raw
+probe voltage.
+
+When the measured voltage falls below the configured maintenance threshold, the
+controller performs a small maintenance dose.
+
+Rather than using a fixed maintenance dose, the controller uses **proportional
+step dosing**.
+
+The requested maintenance dose is scaled according to the difference between:
+
+- Current probe voltage
+- Target probe voltage
+
+This provides larger corrections when nutrient concentration is significantly
+low while automatically reducing the correction size as the target is
+approached.
+
+### Proportional Step Dosing
+
+Maintenance dosing uses a proportional step algorithm rather than a fixed dose.
+
+Three configurable voltage limits define the controller behavior:
+
+- **Low Trigger Voltage** – begins maintenance dosing.
+- **Target Voltage** – desired operating voltage after maintenance.
+- **Hard Stop Voltage** – prevents additional nutrient additions.
+
+When the measured probe voltage falls below the Low Trigger Voltage, the
+controller calculates a maintenance dose proportional to the voltage error:
+
+```
+Voltage Error = Target Voltage − Current Voltage
+```
+
+The requested maintenance dose is then calculated as:
+
+```
+Requested Dose =
+Tank Gallons × Maximum Step mL/Gallon × Correction Ratio
+```
+
+where the Correction Ratio is limited between 0 and 1.
+
+As the measured voltage approaches the Target Voltage, the requested dose
+becomes progressively smaller.
+
+This proportional approach provides smooth correction while reducing the
+likelihood of overshoot without requiring the complexity of a PID controller.
+
+## Safety Philosophy
+
+Several independent limits prevent excessive nutrient additions.
+
+Maintenance dosing is permitted only when:
+
+- Outside Controller Mode is Auto Fill - Auto Dose.
+- The circulation system is operating normally.
+- Inventory is above the configured reserve level.
+- Tank volume is valid.
+- Fill and manual dosing are not active.
+- Probe voltage remains below the maintenance target.
+- Probe voltage is below the configured hard-stop limit.
+
+Maintenance dosing immediately stops when any safety condition is violated.
+
+Maintenance dosing is additionally limited by a configurable maximum number of
+successive correction cycles to prevent repeated dosing caused by abnormal
+sensor behavior or unexpected system faults.
+
+## Continuous Monitoring
+
+The installed probe is used as a **process control sensor**, not a laboratory
+instrument.
+
+Its purpose is to detect relative changes in nutrient concentration during daily
+operation.
+
+Because probe characteristics may change over time due to temperature,
+installation, fouling, or aging, the system does not rely solely on calculated
+EC values.
+
+## Long-Term Calibration Strategy
+
+The production reference remains the handheld EC meter.
+
+Periodic reference measurements record:
+
+- Raw probe voltage
+- Handheld EC
+- Water temperature
+- Tank volume
+- Environmental conditions
+- Operator notes
+
+These measurements are stored in the historical database and used to refine the
+voltage-to-EC conversion model over time.
+
+Estimated Tank EC is therefore considered an engineering estimate rather than a
+primary control variable until sufficient historical calibration data has been
+collected.
 
 ---
 
@@ -157,19 +283,23 @@ calculates and injects the required nutrients.
 Manual service and maintenance mode.
 
 Automation is intentionally bypassed. The controller functions only as a
-hardware interface.
+hardware interface while providing operator decision support.
 
 **Operator Responsibilities**
 
+- Specify the desired fill amount, if applicable.
+- Review the recommended nutrient dose calculated by the **🧮 ESP-Override Dose Recommendation Calculator** automation.
+- Decide whether to use the recommended dose or a different amount.
 - Start and stop fills.
 - Manually dose Part A.
 - Manually dose Part B.
 - Determine all quantities and timing.
 
-**Controller Responsibilities**
+**System Responsibilities**
 
-- Operate pumps and valves.
-- Record manual events when appropriate.
+- The **🧮 ESP-Override Dose Recommendation Calculator** automation calculates and displays a recommended nutrient dose based on the specified fill amount.
+- The patio_controller operates pumps and valves only when commanded by the operator.
+- The patio_controller records manual execution events when appropriate.
 
 ---
 
@@ -273,6 +403,7 @@ Potential future capabilities include:
 
 # Revision History
 
-| Date | Revision | Description |
-|------|----------|-------------|
+| Date       | Revision | Description |
+| ---------- | -------- | ----------- |
 | 2026-07-01 | 0.1 | Initial document outline. |
+| 2026-07-06 | 0.2 | Added nutrient management philosophy, operating modes, and maintenance dosing strategy. |
