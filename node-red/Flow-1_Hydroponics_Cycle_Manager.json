@@ -181,7 +181,7 @@
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
         "name": "Hydroponics Cycle Manager",
-        "func": "const entity = msg.topic;\nconst state = msg.payload;\n\nlet cycle = flow.get(\"outside_pending_cycle\") || null;\n\nfunction nowIso() {\n    return new Date().toISOString();\n}\n\nfunction titleForCycle(mode, eventType) {\n\n    if (eventType === \"FILL\") {\n        if (mode === \"auto\")\n            return \"🤖 Auto Fill - Auto Dose Complete\";\n\n        if (mode === \"manual\")\n            return \"🧪 Manual Fill - Auto Dose Complete\";\n\n        if (mode === \"esp-override\")\n            return \"🟥 ESP-Override Fill Complete\";\n    }\n\n    // DOSE events\n    if (mode === \"esp-override\")\n        return \"🟥 ESP-Override Dose Complete\";\n\n    if (mode === \"auto\")\n        return \"🤖 Auto Maintenance Dose Complete\";\n\n    return \"🧪 Hydroponics Cycle Complete\";\n}\n\nfunction newCycle(eventType) {\n    return {\n        started_at: nowIso(),\n\n        // Must come from HA control mode, not hardcoded.\n        mode: normalizeMode(msg.control_mode),\n\n        source: \"outside\",\n        location: \"patio\",\n        device: \"node_red_cycle_manager\",\n        event_type: eventType,\n\n        system_gallons: null,\n        gallons_added: null,\n\n        dose_a_ml: null,\n        dose_b_ml: null,\n\n        tds_before: null,\n        tds_after: null,\n\n        fill_used: false,\n        pump_a_used: false,\n        pump_b_used: false\n    };\n}\n\n// -----------------------------\n// ACTION STARTED\n// -----------------------------\nif (state === \"on\") {\n\n    flow.set(\"outside_cycle_active\", true);\n\n    if (entity.includes(\"water_fill_solenoid\")) {\n        // Fill starts a fill cycle.\n        cycle = newCycle(\"FILL\");\n        cycle.fill_used = true;\n        msg.capture_before = true;\n        node.warn(\"NEW FILL CYCLE STARTED\");\n    }\n\n    else if (entity.includes(\"nutrient_pump_a\")) {\n        if (!cycle) {\n            // Dose-only cycle.\n            cycle = newCycle(\"DOSE\");\n            msg.capture_before = true;\n            node.warn(\"NEW DOSE CYCLE STARTED\");\n        } else {\n            // Pump A is joining an existing fill cycle.\n            node.warn(\"PUMP A JOINED ACTIVE CYCLE\");\n        }\n\n        cycle.pump_a_used = true;\n    }\n\n    else if (entity.includes(\"nutrient_pump_b\")) {\n        if (!cycle) {\n            cycle = newCycle(\"DOSE\");\n            msg.capture_before = true;\n            node.warn(\"NEW DOSE CYCLE STARTED FROM PUMP B\");\n        } else {\n            node.warn(\"PUMP B JOINED ACTIVE CYCLE\");\n        }\n\n        cycle.pump_b_used = true;\n    }\n\n    // If water was used, final event is FILL even if dosing also happened.\n    if (cycle.fill_used) {\n        cycle.event_type = \"FILL\";\n    }\n\n    flow.set(\"outside_pending_cycle\", cycle);\n    msg.payload = cycle;\n    return msg;\n}\n\n// -----------------------------\n// ACTION STOPPED\n// -----------------------------\nif (state === \"off\") {\n\n    if (!cycle) {\n        node.warn(\"OFF event with no active cycle\");\n        return null;\n    }\n\n    cycle.last_activity = nowIso();\n\n    if (entity.includes(\"water_fill_solenoid\")) {\n        msg.capture_fill_done = true;\n        node.warn(\"Fill completed\");\n    }\n\n    if (entity.includes(\"nutrient_pump_a\")) {\n        msg.capture_dose_a_done = true;\n        node.warn(\"Pump A completed\");\n    }\n\n    if (entity.includes(\"nutrient_pump_b\")) {\n        msg.capture_dose_b_done = true;\n        node.warn(\"Pump B completed\");\n    }\n\n    if (cycle.fill_used) {\n        cycle.event_type = \"FILL\";\n    }\n\n    flow.set(\"outside_pending_cycle\", cycle);\n    msg.payload = cycle;\n    return msg;\n}\n\nreturn null;",
+        "func": "const entity = msg.topic;\nconst state = msg.payload;\n\nlet cycle = flow.get(\"outside_pending_cycle\") || null;\n\nfunction nowIso() {\n    return new Date().toISOString();\n}\n\n// ─────────────────────────────────────────────\n// Normalize HA outside control mode\n//\n// Purpose:\n// - Converts current and legacy Home Assistant control mode names\n//   into the short mode values stored in maintenance_log.\n// - Keeps DB history consistent after the 2026-07-06 mode rename.\n// ─────────────────────────────────────────────\nfunction normalizeMode(controlMode) {\n    const mode = String(controlMode || \"\").trim();\n\n    if (mode === \"Auto Fill - Auto Dose\" || mode === \"Auto\") {\n        return \"auto\";\n    }\n\n    if (mode === \"Manual Fill - Auto Dose\" || mode === \"Manual\") {\n        return \"manual\";\n    }\n\n    if (mode === \"ESP-Override\") {\n        return \"esp-override\";\n    }\n\n    return \"unknown\";\n}\n\nfunction titleForCycle(mode, eventType) {\n\n    if (eventType === \"FILL\") {\n        if (mode === \"auto\")\n            return \"🤖 Auto Fill - Auto Dose Complete\";\n\n        if (mode === \"manual\")\n            return \"🧪 Manual Fill - Auto Dose Complete\";\n\n        if (mode === \"esp-override\")\n            return \"🟥 ESP-Override Fill Complete\";\n    }\n\n    // DOSE events\n    if (mode === \"esp-override\")\n        return \"🟥 ESP-Override Dose Complete\";\n\n    if (mode === \"auto\")\n        return \"🤖 Auto Maintenance Dose Complete\";\n\n    return \"🧪 Hydroponics Cycle Complete\";\n}\n\nfunction newCycle(eventType) {\n    const mode = normalizeMode(msg.control_mode);\n\n    return {\n        started_at: nowIso(),\n\n        // Must come from HA control mode, not hardcoded.\n        mode: mode,\n\n        // GAL 2026-07-10 ISSUE-006:\n        // Auto and Manual cycles wait for post-mixing TDS.\n        // ESP-Override actions are intended for immediate logging.\n        delay_tds_capture: mode !== \"esp-override\",\n\n        source: \"outside\",\n        location: \"patio\",\n        device: \"node_red_cycle_manager\",\n        event_type: eventType,\n\n        system_gallons: null,\n        gallons_added: null,\n\n        dose_a_ml: null,\n        dose_b_ml: null,\n\n        tds_before: null,\n        tds_after: null,\n\n        fill_used: false,\n        pump_a_used: false,\n        pump_b_used: false\n    };\n}\n\n// -----------------------------\n// ACTION STARTED\n// -----------------------------\nif (state === \"on\") {\n\n    flow.set(\"outside_cycle_active\", true);\n\n    if (entity.includes(\"water_fill_solenoid\")) {\n        // Fill starts a fill cycle.\n        cycle = newCycle(\"FILL\");\n        cycle.fill_used = true;\n        msg.capture_before = true;\n        node.warn(\"NEW FILL CYCLE STARTED\");\n    }\n\n    else if (entity.includes(\"nutrient_pump_a\")) {\n        if (!cycle) {\n            // Dose-only cycle.\n            cycle = newCycle(\"DOSE\");\n            msg.capture_before = true;\n            node.warn(\"NEW DOSE CYCLE STARTED\");\n        } else {\n            // Pump A is joining an existing fill cycle.\n            node.warn(\"PUMP A JOINED ACTIVE CYCLE\");\n        }\n\n        cycle.pump_a_used = true;\n    }\n\n    else if (entity.includes(\"nutrient_pump_b\")) {\n        if (!cycle) {\n            cycle = newCycle(\"DOSE\");\n            msg.capture_before = true;\n            node.warn(\"NEW DOSE CYCLE STARTED FROM PUMP B\");\n        } else {\n            node.warn(\"PUMP B JOINED ACTIVE CYCLE\");\n        }\n\n        cycle.pump_b_used = true;\n    }\n\n    // If water was used, final event is FILL even if dosing also happened.\n    if (cycle.fill_used) {\n        cycle.event_type = \"FILL\";\n    }\n\n    flow.set(\"outside_pending_cycle\", cycle);\n    msg.payload = cycle;\n    return msg;\n}\n\n// -----------------------------\n// ACTION STOPPED\n// -----------------------------\nif (state === \"off\") {\n\n    if (!cycle) {\n        node.warn(\"OFF event with no active cycle\");\n        return null;\n    }\n\n    cycle.last_activity = nowIso();\n\n    // GAL 2026-07-10 ISSUE-006:\n    // ESP-Override actions are independent events and must be logged\n    // immediately after their actual quantity is captured.\n    // Auto and Manual cycles continue through the delayed TDS path.\n    msg.immediate_log = cycle.delay_tds_capture === false;\n\n    // Finalize every ESP-Override action immediately.\n    // Auto and Manual cycles finalize when Pump B completes.\n    msg.finalize_cycle =\n        msg.immediate_log ||\n        entity.includes(\"nutrient_pump_b\");\n\n    if (entity.includes(\"water_fill_solenoid\")) {\n        msg.capture_fill_done = true;\n        node.warn(\"Fill completed\");\n    }\n\n    if (entity.includes(\"nutrient_pump_a\")) {\n        msg.capture_dose_a_done = true;\n        node.warn(\"Pump A completed\");\n    }\n\n    if (entity.includes(\"nutrient_pump_b\")) {\n        msg.capture_dose_b_done = true;\n        node.warn(\"Pump B completed\");\n    }\n\n    if (cycle.fill_used) {\n        cycle.event_type = \"FILL\";\n    }\n\n    flow.set(\"outside_pending_cycle\", cycle);\n    msg.payload = cycle;\n    return msg;\n}\n\nreturn null;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -198,7 +198,7 @@
                 "0b6e8f94a2664c2c"
             ]
         ],
-        "info": "Purpose\r\n\r\nMaintains the state of an active outside hydroponics control cycle.\r\n\r\nThe Cycle Manager groups multiple hardware events into a single logical\r\noperation and determines whether the completed operation represents an:\r\n\r\n• Auto Fill - Auto Dose cycle\r\n• Manual Fill - Auto Dose cycle\r\n• ESP-Override dose cycle\r\n\r\nResponsibilities\r\n\r\n• Creates a new cycle when the first device starts.\r\n• Tracks whether water fill, Pump A, and Pump B participated.\r\n• Captures the control mode at cycle start.\r\n• Preserves a single pending cycle object throughout the operation.\r\n• Generates capture requests for:\r\n  - Before-cycle measurements\r\n  - Fill completion\r\n  - Dose A completion\r\n  - Dose B completion\r\n• Classifies the final event as FILL or DOSE.\r\n• Provides the pending cycle to downstream logging and notification nodes.\r\n\r\nRevision History\r\n\r\n2026-07-06  GAL\r\n• Updated controller operating mode terminology:\r\n  - Auto Fill - Auto Dose\r\n  - Manual Fill - Auto Dose\r\n  - ESP-Override\r\n• normalizeMode() updated to recognize the new Home Assistant\r\n  control mode names while retaining backward compatibility\r\n  with the legacy \"Auto\" and \"Manual\" values.\r\n• Notification titles are now selected using both the controller\r\n  operating mode and the completed event type (FILL or DOSE),\r\n  allowing accurate user-facing notifications for each cycle.\r\n\r\n2026-07-05  GAL\r\n• Introduced unified pending cycle object.\r\n• FILL cycles take precedence when water and dosing occur\r\n  during the same operation.\r\n• Captures HA control mode at cycle start instead of using\r\n  hardcoded values.\r\n• Added before/fill/dose capture flags for downstream\r\n  processing.\r\n\r\n2026-06-30  GAL\r\n• Initial implementation."
+        "info": "Purpose\r\n\r\nMaintains the state of an active outside hydroponics control cycle.\r\n\r\nThe Cycle Manager groups multiple hardware events into a single logical\r\noperation and determines whether the completed operation represents an:\r\n\r\n• Auto Fill - Auto Dose cycle\r\n• Manual Fill - Auto Dose cycle\r\n• ESP-Override dose cycle\r\n\r\nResponsibilities\r\n\r\n• Creates a new cycle when the first device starts.\r\n• Tracks whether water fill, Pump A, and Pump B participated.\r\n• Captures the control mode at cycle start.\r\n• Preserves a single pending cycle object throughout the operation.\r\n• Generates capture requests for:\r\n  - Before-cycle measurements\r\n  - Fill completion\r\n  - Dose A completion\r\n  - Dose B completion\r\n• Classifies the final event as FILL or DOSE.\r\n• Provides the pending cycle to downstream logging and notification nodes.\r\n\r\nRevision History\r\n\r\n2026-07-10  GAL\r\n• ISSUE-006 logging isolation work started.\r\n• Added delay_tds_capture to each cycle:\r\n  - Auto and Manual cycles use delayed post-mixing TDS capture.\r\n  - ESP-Override cycles are marked for immediate logging.\r\n• Added msg.immediate_log on completed ESP-Override actions.\r\n• Added msg.finalize_cycle to determine when a completed hardware action\r\n  should be snapshotted and released:\r\n  - Every ESP-Override action finalizes immediately.\r\n  - Auto and Manual cycles finalize when Pump B completes.\r\n• Establishes separate handling for independent ESP-Override fill,\r\n  Pump A, and Pump B events without forcing them into one grouped cycle.\r\n\r\n2026-07-06  GAL\r\n• Updated controller operating mode terminology:\r\n  - Auto Fill - Auto Dose\r\n  - Manual Fill - Auto Dose\r\n  - ESP-Override\r\n• normalizeMode() updated to recognize the new Home Assistant\r\n  control mode names while retaining backward compatibility\r\n  with the legacy \"Auto\" and \"Manual\" values.\r\n• Notification titles are now selected using both the controller\r\n  operating mode and the completed event type (FILL or DOSE),\r\n  allowing accurate user-facing notifications for each cycle.\r\n\r\n2026-07-05  GAL\r\n• Introduced unified pending cycle object.\r\n• FILL cycles take precedence when water and dosing occur\r\n  during the same operation.\r\n• Captures HA control mode at cycle start instead of using\r\n  hardcoded values.\r\n• Added before/fill/dose capture flags for downstream\r\n  processing.\r\n\r\n2026-06-30  GAL\r\n• Initial implementation."
     },
     {
         "id": "bebd493ef170ce35",
@@ -409,7 +409,7 @@
         "y": 1120,
         "wires": [
             [
-                "78d4229b4f07c1d0"
+                "finalize_cycle_switch"
             ]
         ]
     },
@@ -429,7 +429,7 @@
         "y": 1180,
         "wires": [
             [
-                "78d4229b4f07c1d0"
+                "finalize_cycle_switch"
             ]
         ]
     },
@@ -449,7 +449,7 @@
         "y": 1240,
         "wires": [
             [
-                "78d4229b4f07c1d0"
+                "finalize_cycle_switch"
             ]
         ]
     },
@@ -562,8 +562,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 2620,
-        "y": 1240,
+        "x": 2880,
+        "y": 1260,
         "wires": []
     },
     {
@@ -571,15 +571,15 @@
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
         "name": "Save TDS After",
-        "func": "let cycle = flow.get(\"outside_pending_cycle\") || {};\n\ncycle.tds_after = msg.event?.tds_after ?? null;\n\nflow.set(\"outside_pending_cycle\", cycle);\n\nmsg.payload = cycle;\nreturn msg;\nreturn msg;",
+        "func": "// ─────────────────────────────────────────────────────────────\n// Save TDS After\n//\n// GAL 2026-07-10 ISSUE-006\n//\n// Purpose:\n// - Adds the post-mixing TDS value to the completed cycle snapshot.\n// - Uses msg.completed_cycle instead of the shared flow context so\n//   a newer maintenance dose can run while this cycle waits.\n// ─────────────────────────────────────────────────────────────\n\nconst cycle = msg.completed_cycle;\n\nif (!cycle) {\n    node.warn(\"Missing completed_cycle in Save TDS After.\");\n    return null;\n}\n\ncycle.tds_after = msg.event?.tds_after ?? null;\n\nmsg.completed_cycle = cycle;\nmsg.payload = cycle;\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 2140,
-        "y": 1120,
+        "x": 2680,
+        "y": 1180,
         "wires": [
             [
                 "a58e28e9bd0a427b"
@@ -591,20 +591,21 @@
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
         "name": "Build Cycle INSERT SQL",
-        "func": "const e = flow.get(\"outside_pending_cycle\") || {};\n\nfunction txt(v) {\n    if (v === undefined || v === null || v === \"\") return \"NULL\";\n    return \"'\" + String(v).replace(/'/g, \"''\") + \"'\";\n}\n\nfunction num(v) {\n    const n = Number(v);\n    return Number.isFinite(n) ? String(n) : \"NULL\";\n}\n\nfunction fmtNum(v, decimals) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(decimals) : null;\n}\n\nconst mode = e.mode || \"unknown\";\nconst eventType = e.fill_used ? \"FILL\" : \"DOSE\";\n\nlet parts = [];\nparts.push(mode);\nparts.push(eventType);\n\nlet details = [];\n\nif (Number(e.gallons_added) > 0) {\n    details.push(`added ${fmtNum(e.gallons_added, 2)} gal water`);\n}\n\nif (Number(e.dose_a_ml) > 0) {\n    details.push(`dose A ${fmtNum(e.dose_a_ml, 0)} mL`);\n}\n\nif (Number(e.dose_b_ml) > 0) {\n    details.push(`dose B ${fmtNum(e.dose_b_ml, 0)} mL`);\n}\n\nif (Number.isFinite(Number(e.system_gallons))) {\n    details.push(`system ${fmtNum(e.system_gallons, 1)} gal`);\n}\n\nif (Number.isFinite(Number(e.tds_before)) && Number.isFinite(Number(e.tds_after))) {\n    details.push(`TDS ${fmtNum(e.tds_before, 3)} → ${fmtNum(e.tds_after, 3)} V`);\n} else if (Number.isFinite(Number(e.tds_before))) {\n    details.push(`TDS before ${fmtNum(e.tds_before, 3)} V`);\n} else if (Number.isFinite(Number(e.tds_after))) {\n    details.push(`TDS after ${fmtNum(e.tds_after, 3)} V`);\n}\n\nconst note = `${parts.join(\" \")}: ${details.join(\"; \")}`;\n\nconst raw = {\n    ...e,\n    final_mode: mode,\n    final_event_type: eventType\n};\n\nmsg.topic = `\nINSERT INTO maintenance_log\n(\n  timestamp_utc,\n  internal_time,\n  source,\n  location,\n  device,\n  event_type,\n  mode,\n  system_gallons,\n  gallons_added,\n  dose_a_ml,\n  dose_b_ml,\n  tds_before,\n  tds_after,\n  note,\n  raw_message\n)\nVALUES\n(\n  UTC_TIMESTAMP(),\n  NOW(),\n  ${txt(e.source)},\n  ${txt(e.location)},\n  ${txt(e.device)},\n  ${txt(eventType)},\n  ${txt(mode)},\n  ${num(e.system_gallons)},\n  ${num(e.gallons_added)},\n  ${num(e.dose_a_ml)},\n  ${num(e.dose_b_ml)},\n  ${num(e.tds_before)},\n  ${num(e.tds_after)},\n  ${txt(note)},\n  ${txt(JSON.stringify(raw))}\n);\n`;\n\nmsg.payload = msg.topic;\nreturn msg;",
+        "func": "// ─────────────────────────────────────────────────────────────\n// Build Cycle INSERT SQL\n//\n// GAL 2026-07-10 ISSUE-006\n//\n// Purpose:\n// - Builds the MariaDB INSERT statement for one completed\n//   hydroponics fill or maintenance dose cycle.\n// - Uses the completed cycle snapshot carried in msg.completed_cycle\n//   instead of the shared flow context.\n// - Prevents overlapping maintenance cycles from overwriting\n//   each other while waiting for post-mixing TDS stabilization.\n// ─────────────────────────────────────────────────────────────\n\nconst e = msg.completed_cycle || {};\n\nfunction txt(v) {\n    if (v === undefined || v === null || v === \"\") return \"NULL\";\n    return \"'\" + String(v).replace(/'/g, \"''\") + \"'\";\n}\n\n// Converts valid numeric values for SQL.\n// Missing or unused values remain SQL NULL rather than becoming zero.\nfunction num(v) {\n    if (v === undefined || v === null || v === \"\") {\n        return \"NULL\";\n    }\n\n    const n = Number(v);\n    return Number.isFinite(n) ? String(n) : \"NULL\";\n}\n\nfunction fmtNum(v, decimals) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(decimals) : null;\n}\n\nconst mode = e.mode || \"unknown\";\nconst eventType = e.fill_used ? \"FILL\" : \"DOSE\";\n\nlet parts = [];\nparts.push(mode);\nparts.push(eventType);\n\nlet details = [];\n\nif (Number(e.gallons_added) > 0) {\n    details.push(`added ${fmtNum(e.gallons_added, 2)} gal water`);\n}\n\nif (Number(e.dose_a_ml) > 0) {\n    details.push(`dose A ${fmtNum(e.dose_a_ml, 0)} mL`);\n}\n\nif (Number(e.dose_b_ml) > 0) {\n    details.push(`dose B ${fmtNum(e.dose_b_ml, 0)} mL`);\n}\n\nif (Number.isFinite(Number(e.system_gallons))) {\n    details.push(`system ${fmtNum(e.system_gallons, 1)} gal`);\n}\n\nif (Number.isFinite(Number(e.tds_before)) && Number.isFinite(Number(e.tds_after))) {\n    details.push(`TDS ${fmtNum(e.tds_before, 3)} → ${fmtNum(e.tds_after, 3)} V`);\n} else if (Number.isFinite(Number(e.tds_before))) {\n    details.push(`TDS before ${fmtNum(e.tds_before, 3)} V`);\n} else if (Number.isFinite(Number(e.tds_after))) {\n    details.push(`TDS after ${fmtNum(e.tds_after, 3)} V`);\n}\n\nconst note = `${parts.join(\" \")}: ${details.join(\"; \")}`;\n\nconst raw = {\n    ...e,\n    final_mode: mode,\n    final_event_type: eventType\n};\n\nmsg.topic = `\nINSERT INTO maintenance_log\n(\n  timestamp_utc,\n  internal_time,\n  source,\n  location,\n  device,\n  event_type,\n  mode,\n  system_gallons,\n  gallons_added,\n  dose_a_ml,\n  dose_b_ml,\n  tds_before,\n  tds_after,\n  note,\n  raw_message\n)\nVALUES\n(\n  UTC_TIMESTAMP(),\n  NOW(),\n  ${txt(e.source)},\n  ${txt(e.location)},\n  ${txt(e.device)},\n  ${txt(eventType)},\n  ${txt(mode)},\n  ${num(e.system_gallons)},\n  ${num(e.gallons_added)},\n  ${num(e.dose_a_ml)},\n  ${num(e.dose_b_ml)},\n  ${num(e.tds_before)},\n  ${num(e.tds_after)},\n  ${txt(note)},\n  ${txt(JSON.stringify(raw))}\n);\n`;\n\nmsg.payload = msg.topic;\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 2370,
+        "x": 2790,
         "y": 1120,
         "wires": [
             [
                 "376b2c44ba7f8b33"
             ]
-        ]
+        ],
+        "info": "Purpose\r\n\r\nBuilds the MariaDB INSERT statement for one completed hydroponics\r\nfill or dose cycle.\r\n\r\nUses the completed cycle snapshot carried in msg.completed_cycle\r\ninstead of the shared flow.outside_pending_cycle object.\r\n\r\nThis prevents a later maintenance dose from overwriting or merging\r\nwith an earlier completed cycle while the earlier cycle is waiting\r\nfor its post-mixing TDS reading.\r\n\r\nRevision History\r\n\r\n2026-07-10  GAL\r\n• ISSUE-006 logging isolation fix.\r\n• Changed cycle source from flow.outside_pending_cycle to\r\n  msg.completed_cycle.\r\n• Each completed physical cycle now retains its own independent\r\n  data through the 10-minute mixing delay.\r\n• Prevents overlapping maintenance doses from being merged into\r\n  one maintenance_log record."
     },
     {
         "id": "376b2c44ba7f8b33",
@@ -612,8 +613,8 @@
         "z": "3ec2ad8e53afdcdc",
         "mydb": "mysql_logbook_placeholder",
         "name": "Insert Fill Event",
-        "x": 1680,
-        "y": 1240,
+        "x": 2940,
+        "y": 1180,
         "wires": [
             [
                 "6d516f13453be6a0"
@@ -625,20 +626,21 @@
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
         "name": "Clear Pending Cycle",
-        "func": "flow.set(\"outside_pending_cycle\", null);\nflow.set(\"outside_cycle_active\", false);\n\nmsg.payload = \"cycle logged, notified, and cleared\";\nreturn msg;",
+        "func": "// ─────────────────────────────────────────────────────────────\n// Clear Pending Cycle\n//\n// GAL 2026-07-10 ISSUE-006\n//\n// Purpose:\n// - Marks the completed snapshot as fully logged and notified.\n// - Does not clear flow.outside_pending_cycle here because that\n//   shared slot was already released before the mixing timer.\n// - Prevents this delayed completion path from clearing a newer\n//   maintenance cycle that may already be active.\n// ─────────────────────────────────────────────────────────────\n\nmsg.payload = \"cycle logged and notified\";\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 2380,
-        "y": 1240,
+        "x": 2620,
+        "y": 1260,
         "wires": [
             [
                 "1e13ec350eef01e2"
             ]
-        ]
+        ],
+        "info": "Purpose\r\n\r\nFinalizes the delayed logging and notification path for one completed\r\nhydroponics cycle.\r\n\r\nThe shared flow.outside_pending_cycle slot is released earlier by the\r\nSnapshot Completed Cycle node.\r\n\r\nThis node must not clear shared cycle state because a newer cycle may\r\nalready be active by the time the 10-minute mixing delay completes.\r\n\r\nRevision History\r\n\r\n2026-07-10  GAL\r\n• ISSUE-006 logging isolation fix.\r\n• Removed clearing of flow.outside_pending_cycle and\r\n  flow.outside_cycle_active from this delayed node.\r\n• Prevents an older completed cycle from clearing a newer active cycle."
     },
     {
         "id": "d419416313bceb5d",
@@ -664,8 +666,8 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 1890,
-        "y": 1120,
+        "x": 2430,
+        "y": 1180,
         "wires": [
             [
                 "aa24277679832b81"
@@ -686,11 +688,11 @@
         "overrideDelay": false,
         "units": "min",
         "reset": "",
-        "bytopic": "all",
+        "bytopic": "topic",
         "topic": "topic",
         "outputs": 1,
-        "x": 1650,
-        "y": 1120,
+        "x": 2210,
+        "y": 1180,
         "wires": [
             [
                 "d419416313bceb5d"
@@ -702,21 +704,21 @@
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
         "name": "Build Notification Text",
-        "func": "// Build cycle completion notification.\n//\n// Uses the pending cycle captured by the Cycle Manager to generate the\n// user-facing notification text for completed hydroponics control cycles.\n//\n// FILL cycles report:\n//   • Water Added\n//   • Starting Volume\n//   • Calculated Final Volume\n//\n// DOSE cycles report:\n//   • System Volume\n//\n// Detailed node purpose and revision history are maintained in the\n// Node-RED Documentation tab.\n\nconst e = flow.get(\"outside_pending_cycle\") || {};\n\nfunction fmt(v, d = 2) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(d) : \"n/a\";\n}\n\nfunction titleForCycle(mode, eventType) {\n\n    if (eventType === \"FILL\") {\n        if (mode === \"auto\")\n            return \"🤖 Auto Fill - Auto Dose Complete\";\n\n        if (mode === \"manual\")\n            return \"🧪 Manual Fill - Auto Dose Complete\";\n\n        if (mode === \"esp-override\")\n            return \"🟥 ESP-Override Fill Complete\";\n    }\n\n    if (eventType === \"DOSE\") {\n        if (mode === \"auto\")\n            return \"🤖 Auto Maintenance Dose Complete\";\n\n        if (mode === \"esp-override\")\n            return \"🟥 ESP-Override Dose Complete\";\n    }\n\n    return \"🧪 Hydroponics Cycle Complete\";\n}\n\nconst mode = e.mode || \"unknown\";\nconst eventType = e.fill_used ? \"FILL\" : \"DOSE\";\n\nlet lines = [];\n\nmsg.title = titleForCycle(mode, eventType);\n\nif (eventType === \"FILL\") {\n    lines.push(\"Auto Fill - Auto Dose cycle completed\");\n} else if (mode === \"esp-override\") {\n    lines.push(\"ESP-Override DOSE completed\");\n} else {\n    lines.push(`${mode} ${eventType} completed`);\n}\n\nif (e.gallons_added > 0) {\n    lines.push(`Water Added: ${fmt(e.gallons_added)} gal`);\n}\n\nif (e.dose_a_ml > 0) {\n    lines.push(`Dose A: ${fmt(e.dose_a_ml, 0)} mL`);\n}\n\nif (e.dose_b_ml > 0) {\n    lines.push(`Dose B: ${fmt(e.dose_b_ml, 0)} mL`);\n}\n\nif (eventType === \"FILL\") {\n    lines.push(`Starting Volume: ${fmt(e.system_gallons, 1)} gal`);\n\n    const calculatedFinal = Number(e.system_gallons) + Number(e.gallons_added);\n    if (Number.isFinite(calculatedFinal)) {\n        lines.push(`Calculated Final Volume: ${fmt(calculatedFinal, 1)} gal`);\n    }\n} else {\n    lines.push(`System Volume: ${fmt(e.system_gallons, 1)} gal`);\n}\n\nif (e.tds_before || e.tds_after) {\n    lines.push(`TDS: ${fmt(e.tds_before, 3)} → ${fmt(e.tds_after, 3)}`);\n}\n\nmsg.payload = lines.join(\"\\n\");\nreturn msg;",
+        "func": "// Build cycle completion notification.\n//\n// Uses the pending cycle captured by the Cycle Manager to generate the\n// user-facing notification text for completed hydroponics control cycles.\n//\n// FILL cycles report:\n//   • Water Added\n//   • Starting Volume\n//   • Calculated Final Volume\n//\n// DOSE cycles report:\n//   • System Volume\n//\n// Detailed node purpose and revision history are maintained in the\n// Node-RED Documentation tab.\n\nconst e = msg.completed_cycle || {};\n\nfunction fmt(v, d = 2) {\n    const n = Number(v);\n    return Number.isFinite(n) ? n.toFixed(d) : \"n/a\";\n}\n\nfunction hasNumber(v) {\n    return v !== undefined &&\n        v !== null &&\n        v !== \"\" &&\n        Number.isFinite(Number(v));\n}\n\nfunction titleForCycle(mode, eventType) {\n\n    if (eventType === \"FILL\") {\n        if (mode === \"auto\")\n            return \"🤖 Auto Fill - Auto Dose Complete\";\n\n        if (mode === \"manual\")\n            return \"🧪 Manual Fill - Auto Dose Complete\";\n\n        if (mode === \"esp-override\")\n            return \"🟥 ESP-Override Fill Complete\";\n    }\n\n    if (eventType === \"DOSE\") {\n        if (mode === \"auto\")\n            return \"🤖 Auto Maintenance Dose Complete\";\n\n        if (mode === \"esp-override\")\n            return \"🟥 ESP-Override Dose Complete\";\n    }\n\n    return \"🧪 Hydroponics Cycle Complete\";\n}\n\nconst mode = e.mode || \"unknown\";\nconst eventType = e.fill_used ? \"FILL\" : \"DOSE\";\n\nlet lines = [];\n\nmsg.title = titleForCycle(mode, eventType);\n\nif (eventType === \"FILL\") {\n    if (mode === \"esp-override\") {\n        lines.push(\"ESP-Override FILL completed\");\n    } else if (mode === \"manual\") {\n        lines.push(\"Manual Fill - Auto Dose cycle completed\");\n    } else {\n        lines.push(\"Auto Fill - Auto Dose cycle completed\");\n    }\n}\n\nif (e.gallons_added > 0) {\n    lines.push(`Water Added: ${fmt(e.gallons_added)} gal`);\n}\n\nif (e.dose_a_ml > 0) {\n    lines.push(`Dose A: ${fmt(e.dose_a_ml, 0)} mL`);\n}\n\nif (e.dose_b_ml > 0) {\n    lines.push(`Dose B: ${fmt(e.dose_b_ml, 0)} mL`);\n}\n\nif (eventType === \"FILL\") {\n    lines.push(`Starting Volume: ${fmt(e.system_gallons, 1)} gal`);\n\n    const calculatedFinal = Number(e.system_gallons) + Number(e.gallons_added);\n    if (Number.isFinite(calculatedFinal)) {\n        lines.push(`Calculated Final Volume: ${fmt(calculatedFinal, 1)} gal`);\n    }\n} else {\n    lines.push(`System Volume: ${fmt(e.system_gallons, 1)} gal`);\n}\n\nif (hasNumber(e.tds_before) && hasNumber(e.tds_after)) {\n    lines.push(`TDS: ${fmt(e.tds_before, 3)} → ${fmt(e.tds_after, 3)}`);\n} else if (hasNumber(e.tds_before)) {\n    lines.push(`TDS Before: ${fmt(e.tds_before, 3)}`);\n} else if (hasNumber(e.tds_after)) {\n    lines.push(`TDS After: ${fmt(e.tds_after, 3)}`);\n}\n\nmsg.payload = lines.join(\"\\n\");\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 1900,
-        "y": 1240,
+        "x": 2140,
+        "y": 1260,
         "wires": [
             [
                 "notify_hydro_cycle_complete"
             ]
         ],
-        "info": "Purpose\r\n\r\nBuilds the user-facing completion notification summarizing a completed\r\nhydroponics control cycle.\r\n\r\nSupports:\r\n• Auto Fill - Auto Dose\r\n• Manual Fill - Auto Dose\r\n• ESP-Override dose cycles\r\n\r\nDisplays only the information relevant to the completed cycle, including\r\nwater added, nutrient doses, tank volume, and TDS before/after values.\r\n\r\nRevision History\r\n\r\n2026-07-06  GAL\r\n• Updated notification terminology to match the new controller\r\n  operating modes:\r\n  - Auto Fill - Auto Dose\r\n  - Manual Fill - Auto Dose\r\n  - ESP-Override\r\n• Notification titles are now selected using both the controller\r\n  operating mode and completed event type (FILL or DOSE).\r\n• FILL notifications display:\r\n  - Water Added\r\n  - Starting Volume\r\n  - Calculated Final Volume\r\n• DOSE notifications continue to display:\r\n  - System Volume\r\n\r\n2026-07-05  GAL\r\n• FILL notifications distinguish between:\r\n  - Starting Volume (pre-fill tank volume)\r\n  - Calculated Final Volume (Starting Volume + Water Added)\r\n• DOSE notifications continue to report current System Volume.\r\n\r\n2026-06-30  GAL\r\n• Initial implementation."
+        "info": "Purpose\r\n\r\nBuilds the user-facing completion notification summarizing a completed\r\nhydroponics control cycle.\r\n\r\nSupports:\r\n• Auto Fill - Auto Dose\r\n• Manual Fill - Auto Dose\r\n• ESP-Override dose cycles\r\n\r\nDisplays only the information relevant to the completed cycle, including\r\nwater added, nutrient doses, tank volume, and TDS before/after values.\r\n\r\nRevision History\r\n\r\n2026-07-10  GAL\r\n• ISSUE-006 notification isolation fix.\r\n• Changed notification source from flow.outside_pending_cycle to\r\n  msg.completed_cycle.\r\n• Each completed physical cycle now retains its own independent\r\n  snapshot through the 10-minute mixing delay.\r\n• Prevents a later maintenance dose from replacing or merging with\r\n  an earlier cycle before its notification is built.\r\n\r\n2026-07-06  GAL\r\n• Updated notification terminology to match the new controller\r\n  operating modes:\r\n  - Auto Fill - Auto Dose\r\n  - Manual Fill - Auto Dose\r\n  - ESP-Override\r\n• Notification titles are now selected using both the controller\r\n  operating mode and completed event type (FILL or DOSE).\r\n• FILL notifications display:\r\n  - Water Added\r\n  - Starting Volume\r\n  - Calculated Final Volume\r\n• DOSE notifications continue to display:\r\n  - System Volume\r\n\r\n2026-07-05  GAL\r\n• FILL notifications distinguish between:\r\n  - Starting Volume (pre-fill tank volume)\r\n  - Calculated Final Volume (Starting Volume + Water Added)\r\n• DOSE notifications continue to report current System Volume.\r\n\r\n2026-06-30  GAL\r\n• Initial implementation."
     },
     {
         "id": "7eabbb3955a2def6",
@@ -792,8 +794,8 @@
         "blockInputOverrides": true,
         "domain": "persistent_notification",
         "service": "create",
-        "x": 2140,
-        "y": 1240,
+        "x": 2380,
+        "y": 1260,
         "wires": [
             [
                 "87af5340f680e239"
@@ -830,6 +832,83 @@
         "wires": [
             [
                 "7dce1a043980cb95"
+            ]
+        ]
+    },
+    {
+        "id": "2979c3946a69c9cb",
+        "type": "function",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Snapshot Completed Cycle",
+        "func": "// ─────────────────────────────────────────────────────────────\n// Snapshot Completed Cycle\n//\n// GAL 2026-07-10 ISSUE-006\n//\n// Purpose:\n// - Copies one completed physical fill or dose event into the message.\n// - Immediately releases the shared active-cycle slot.\n// - Allows the next hardware event to start as a separate DB record.\n// - Automatic cycles may continue through the post-mixing TDS path.\n// - ESP-Override events may proceed directly to database logging.\n// ─────────────────────────────────────────────────────────────\n\nconst cycle = flow.get(\"outside_pending_cycle\");\n\nif (!cycle) {\n    node.warn(\"Cannot snapshot completed cycle: no pending cycle.\");\n    return null;\n}\n\n// Preserve this completed cycle independently of flow context.\nmsg.completed_cycle = JSON.parse(JSON.stringify(cycle));\n\n// Release the shared cycle immediately.\nflow.set(\"outside_pending_cycle\", null);\nflow.set(\"outside_cycle_active\", false);\n\n// Give each completed cycle an independent mixing timer.\nmsg.topic = msg.completed_cycle.started_at;\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1900,
+        "y": 1120,
+        "wires": [
+            [
+                "ff7c26c13be1c61d"
+            ]
+        ],
+        "info": "Purpose\r\n\r\nCreates an independent snapshot of one completed physical hydroponics\r\nfill or dose event.\r\n\r\nThe snapshot is carried downstream in msg.completed_cycle.\r\n\r\nThe shared flow.outside_pending_cycle slot is immediately released so a\r\nlater hardware event starts as a separate cycle instead of joining the\r\nprevious event.\r\n\r\nAutomatic and Manual cycles may continue through the 10-minute\r\npost-mixing TDS path.\r\n\r\nESP-Override events may bypass the mixing delay and proceed directly\r\nto database logging.\r\n\r\nRevision History\r\n\r\n2026-07-10  GAL\r\n• ISSUE-006 logging isolation fix.\r\n• Added independent completed-cycle snapshot.\r\n• Releases flow.outside_pending_cycle immediately after cycle completion.\r\n• Supports both delayed automatic-cycle logging and immediate\r\n  ESP-Override event logging.\r\n• Prevents consecutive physical events from being merged into one\r\n  maintenance_log record."
+    },
+    {
+        "id": "finalize_cycle_switch",
+        "type": "switch",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Finalize Cycle?",
+        "property": "finalize_cycle",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "true"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "false",
+        "repair": false,
+        "outputs": 2,
+        "x": 1660,
+        "y": 1180,
+        "wires": [
+            [
+                "2979c3946a69c9cb"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "ff7c26c13be1c61d",
+        "type": "switch",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Immediate or Delayed?",
+        "property": "completed_cycle.delay_tds_capture",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "false"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 2170,
+        "y": 1120,
+        "wires": [
+            [
+                "a58e28e9bd0a427b"
+            ],
+            [
+                "78d4229b4f07c1d0"
             ]
         ]
     },
@@ -874,7 +953,7 @@
         "charset": "UTF8"
     },
     {
-        "id": "e35a882de03d7eef",
+        "id": "746d484d62ea66ac",
         "type": "global-config",
         "env": [],
         "modules": {

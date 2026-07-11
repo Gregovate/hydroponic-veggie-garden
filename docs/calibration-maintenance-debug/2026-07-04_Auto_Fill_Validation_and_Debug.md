@@ -140,6 +140,45 @@ required to obtain another calibration reference point.
 
 ---
 
+# Decisions Made Today
+
+- Maintenance Auto Dose remains disabled.
+- Auto Fill controller successfully completed validation.
+- Fill dosing remains proportional to gallons added until further evidence suggests otherwise.
+- EC correction should continue using post-fill maintenance dosing.
+- Permanent documentation will NOT be updated until all fixes are implemented and verified.
+
+---
+
+# Working Action List
+
+## HIGH
+
+- [ ] Repair Event History Dashboard
+- [ ] Fix Auto Fill Logged notification values
+- [ ] Fix Maintenance notification tank volume
+- [ ] Determine inventory update sequence
+- [ ] Redesign Maintenance Auto Dose controller
+- [ ] Add Controller State indicator
+- [ ] Investigate Manual ESP Override anomaly
+
+## MEDIUM
+
+- [ ] Fix duplicate notifications
+- [ ] Improve dashboard status cards
+- [ ] Improve Event Notes
+- [ ] Improve event rendering by event type
+
+---
+
+# Notes
+
+This document is intentionally a working engineering notebook.
+
+Nothing contained here should be considered permanent design documentation until each issue has been fixed, tested, and verified.
+
+---
+
 # Issues Discovered
 
 ## ISSUE-001 - Event History Dashboard / Formatter
@@ -283,7 +322,7 @@ Examples:
 This suggests the notifications are being generated at different points in the
 workflow or are reading different entities.
 
-## Fill Cycle Entity Inventory
+### Fill Cycle Entity Inventory
 
 | Entity | Purpose | Current Status | Notes |
 |---------|----------|---------------|------|
@@ -403,24 +442,7 @@ Changed ESPHome post-fill helper writes to:
 
 Status: IMPLEMENTED - pending next fill verification
 
-### Critical Observation - ESP Reboot Clears Cycle History
 
-After ESP reboot/reflash, dashboard values sourced from ESPHome sensors lost their previous cycle history.
-
-Affected values included:
-
-- Last fill gallons
-- Dose A amount
-- Dose B amount
-- Pump A runtime
-- Pump B runtime
-- Some dose/fill display values
-
-Conclusion:
-
-ESPHome sensors must be treated as live/current-cycle values only.
-
-Persistent “last completed cycle” values need to be stored in Home Assistant helpers and displayed through read-only template sensors.
 
 ### Verification - 2026-07-06 Short Auto Fill
 
@@ -557,15 +579,49 @@ Responsibilities (where appropriate)
 Revision History
 ✅ ISSUE-002 is now largely verified with a real production fill.
 
+### Related Files
+
+Required:
+
+- patio_controller.yaml
+- patio_dosing_controls.yaml
+- db_history_dashboard.yaml
+
+As Needed:
+
+- Home Assistant automations related to Auto Fill and Auto Dose
+- Hydroponics_Cycle_Manager.json
+- 05-nutrient-management-and-ec-control.md
+
+### Components Affected
+
+- ESPHome
+- Home Assistant
+- Node-RED
+- MariaDB
+- Dashboard
+- Documentation
+
+### Final Result
+
+The notification redesign was successfully implemented and verified.
+
+Legacy notifications and CSV logging were removed.
+
+Node-RED now reports:
+
+- Water Added
+- Starting Volume
+- Calculated Final Volume
+- Dose A
+- Dose B
+- TDS Before/After
+
+Remaining enhancements involving persistent dashboard state were moved to ISSUE-008.
+
 ### Status
 
-VERIFIED - CLOSED
-
-All functional defects identified in ISSUE-002 have been corrected and
-verified during the 2026-07-06 production Auto Fill - Auto Dose cycle.
-
-Remaining enhancements have been moved to new iISSUE-008 to keep this issue
-focused on notification correctness and fill-cycle reporting.
+**CLOSED – VERIFIED**
 
 ---
 
@@ -588,6 +644,57 @@ Need to determine:
 - when inventory updates
 - who updates inventory
 - why update timing is inconsistent
+
+### Inventory Recovery
+
+Container tare (matching container):
+190 g
+
+Cap:
+6 g
+
+Measured densities:
+
+Part A
+241 g / 200 mL = 1.205 g/mL
+
+Part B
+233 g / 200 mL = 1.165 g/mL
+
+Gross weights:
+
+Part A = 3500 g
+
+Part B = 3300 g
+
+Current inventory values require verification before permanent correction.
+
+---
+
+### Related Files
+
+Required:
+
+- batch_building.yaml
+- patio_controller.yaml
+- patio_dosing_controls.yaml
+- db_history_dashboard.yaml
+
+As Needed:
+
+- Home Assistant automations related to Auto Fill and Auto Dose
+- Hydroponics_Cycle_Manager.json
+- 05-nutrient-management-and-ec-control.md
+
+### Components Affected
+
+- ESPHome
+- Home Assistant
+- Node-RED
+- MariaDB
+- Dashboard
+- Documentation
+
 
 Status: OPEN
 
@@ -674,244 +781,825 @@ Status: OPEN
 
 ---
 
-## ISSUE-005 - Controller State Visibility
-
-Priority: HIGH
-
-Current dashboard does not indicate controller execution state.
-
-Need visible controller states such as:
-
-- Idle
-- Waiting 5 Minutes
-- Auto Fill Scheduled
-- Waiting 30 Minutes
-- Filling
-- Pre-Fill Dosing
-- Mixing
-- Maintenance Dosing
-- Complete
-- Cancelled
-- Fault
-
-Dashboard should always indicate current controller state and right now the status cards do not reflect actual controller state.
-
-Examples observed:
-
-- Auto Dose card indicated ON while automation was disabled.
-- Controller appeared idle while actually waiting 30 minutes.
-- Difficult to determine controller state at a glance.
-
-Need dashboard state redesign.
-
-
-Status: OPEN
-
----
-
-## ISSUE-006 - Maintenance Auto Dose
+## ISSUE-005 – Controller State Visibility
 
 **Priority:** HIGH
 
 ### Current State
 
-The **Outside TDS Maintenance Auto Dose** automation has been **disabled**.
+The dashboard does not yet accurately represent what the hydroponics controller
+is doing at any given time.
 
-### Reason
+Several independent Home Assistant automations, ESPHome scripts, timers, and
+Node-RED flows may be active, but the dashboard currently provides only partial
+or misleading status.
 
-During maintenance dosing, the automation changed:
+As a result, the operator cannot always quickly determine whether the controller
+is:
 
-`Hydroponics Outside Control Mode` → **ESP Override**
+* Idle
+* Waiting
+* Filling
+* Dosing
+* Mixing
+* Complete
+* Blocked
+* Faulted
 
-This unexpectedly cancelled the pending **Auto Fill** sequence, leaving the system in an incorrect operating state.
+---
 
-Because both the Maintenance Auto Dose automation and the Auto Fill controller use the same global Outside Control Mode for ownership, they can interfere with one another when either changes the mode.
+### Problems Observed
 
-## Root Cause
+Examples encountered during development:
 
-The disabled maintenance dosing automation directly changes the global Outside Control Mode from `Auto` to `ESP-Override` in order to run the dose pump buttons.
+* Auto Dose card indicated **ON** while the automation itself was disabled.
+* Controller appeared idle while actually waiting for the Auto Fill dwell period.
+* Maintenance dosing was executing while the dashboard still showed **Ready**.
+* Difficult to distinguish between:
 
-This temporarily removes ownership from the Auto controller and can interrupt or cancel an active or scheduled Auto Fill cycle.
+  * Waiting for maintenance debounce
+  * Waiting for scheduled fill
+  * Waiting for nutrient mixing
+  * Waiting before the next maintenance dose
+* No indication that ESPHome was actively executing Pump A, Pump B, or a
+  maintenance dose request.
 
-Maintenance dosing should not change the global control mode.
+---
 
-### Required Redesign
+### Design Goal
 
-The maintenance dosing controller must be redesigned so it:
+Create a single operator-facing controller state that accurately represents what
+the hydroponics system is doing at any given time.
 
-- Maintains minimum nutrient concentration while circulation is running.
-- Does **not** change the global Control Mode.
-- Operates independently of Auto Fill.
-- Can coexist safely with scheduled fills.
-- Coordinates ownership with the Auto Fill controller so fill and maintenance dosing cannot conflict or interrupt one another.
-- Preserves all existing safety interlocks (tank level, inventory, maximum TDS voltage, etc.).
+The dashboard should answer one question immediately:
 
-## Corrected Design Direction
+> **What is the controller doing right now?**
 
-There is no separate maintenance controller.
+without requiring the operator to inspect Home Assistant automations, ESPHome
+logs, or Node-RED.
 
-Maintenance Auto Dose should become another command path into the existing `patio_controller`.
+---
 
-HA detects low TDS voltage
-HA sets requested A/B dose amount
-HA presses "maintenance dose request"
-patio_controller checks:
-  - system enabled
-  - mode is Auto
-  - fill not active
-  - dose pumps off
-  - tank volume valid
-  - inventory OK
-  - TDS below low threshold
-  - TDS below hard stop
-patio_controller runs A then B
-HA waits/mixes/rechecks
+### Desired Visible States
 
-Home Assistant may detect that maintenance dosing is needed, calculate/request the step dose amount, and start the maintenance cycle, but it should not take direct control of the system by switching to `ESP-Override`.
+Examples include:
 
-The `patio_controller` must remain the single execution authority for all physical outputs.
+* Idle
+* Waiting for Low-Level Debounce
+* Auto Fill Scheduled
+* Filling
+* Calculating Fill Dose
+* Dosing Nutrient A
+* Waiting Between Pumps
+* Dosing Nutrient B
+* Mixing
+* Waiting for Maintenance Recheck
+* Maintenance Dosing
+* Cycle Complete
+* Cancelled
+* Blocked
+* Fault
+* Calibration Mode
+* ESP-Override
 
-### Implementation Status
+The final state model may change during implementation.
 
-- HA automation Outside TDS Maintenance Auto Dose updated but remains disabled.
-- `patio_dosing_controls.yaml` updated and Home Assistant reloaded.
-- Maintenance dose request helpers added to patio_dosing_controls.yaml
-- Automation no longer switches Outside Control Mode to `ESP-Override`.
-- ESPHome `patio_controller` maintenance dose request handler still needs to be added and validated.
+---
+
+### Engineering Decisions
+
+The controller state design must preserve the existing separation of
+responsibilities.
+
+#### Home Assistant
+
+Home Assistant owns:
+
+* Operator configuration
+* Maintenance dosing coordination
+* Auto Fill coordination
+* Dashboard presentation
+* Controller state visibility
+* Adjustable timing parameters
+
+#### ESPHome
+
+ESPHome remains responsible for:
+
+* Physical pump outputs
+* Fill solenoid control
+* Pump sequencing
+* Pump runtime
+* Inter-pump delay
+* Local execution safety gates
+
+#### Node-RED
+
+Node-RED remains responsible for:
+
+* Completed-cycle logging
+* Delayed post-mixing TDS capture
+* Database writes
+* Completion notifications
+
+A configurable value should have one authoritative owner. Other components
+should consume that value rather than defining duplicate independent settings.
+
+---
+
+### Configurable Timing Design
+
+Four operating timing values were identified as operator-configurable.
+
+#### Maintenance Debounce
+
+Defines how long the maintenance-dose conditions must remain continuously valid
+before a maintenance dose may begin.
+
+**Default:** 5 minutes
+
+**Owner:** `patio_dosing_controls.yaml`
+
+#### Maintenance Mixing Time
+
+Defines how long newly added nutrients are allowed to circulate before the
+post-dose TDS value is evaluated.
+
+This value may require adjustment if tank volume or circulation flow rates are
+changed.
+
+**Default:** 10 minutes
+
+**Owner:** `patio_dosing_controls.yaml`
+
+#### Next Maintenance Dose Offset
+
+Defines the additional delay after the mixing period before another automatic
+maintenance dose may begin.
+
+**Default:** 60 seconds
+
+**Owner:** `patio_dosing_controls.yaml`
+
+#### Auto Fill Dwell
+
+Defines how long the Auto Fill gate must remain continuously valid before an
+automatic fill begins.
+
+This is primarily a system-confidence delay and may be reduced as confidence in
+the tank scale and fill controls improves.
+
+**Default:** 30 minutes
+
+**Owner:** `patio_system_constants.yaml`
+
+The following execution timing values remain fixed implementation constants:
+
+* Home Assistant to ESPHome request propagation delay: 2 seconds
+* ESPHome Pump A to Pump B separation: 5 seconds
+
+---
+
+### Work Completed
+
+#### Documentation
+
+* Added Home Assistant package ownership guidance to the system overview.
+* Added configurable maintenance timing design to the nutrient management
+  documentation.
+* Confirmed that engineering documents describe design intent while YAML and
+  Node-RED files document implementation details.
+
+#### Home Assistant Packages
+
+Added the following helpers to `patio_dosing_controls.yaml`:
+
+* `input_number.outside_maintenance_debounce_minutes`
+* `input_number.outside_maintenance_mixing_minutes`
+* `input_number.outside_maintenance_next_dose_offset_seconds`
+
+Added the following helper to `patio_system_constants.yaml`:
+
+* `input_number.outside_auto_fill_dwell_minutes`
+
+All four helpers loaded successfully in Home Assistant.
+
+#### Automation Logic
+
+Updated the Outside TDS Maintenance Auto Dose automation to use:
+
+* Configurable Maintenance Mixing Time
+* Configurable Next Maintenance Dose Offset
+
+Updated the Outside Maintenance Dose Due binary sensor to use:
+
+* Configurable Maintenance Debounce
+
+Updated the Auto Fill - Auto Dose automation to use:
+
+* Configurable Auto Fill Dwell
+
+#### Dashboard
+
+Added the maintenance timing controls to the Auto-Dose Settings card.
+
+Added the Auto Fill Dwell control to a separate Auto Fill Settings card.
+
+Corrected the maintenance request button entity to:
+
+```text
+button.patio_hydroponics_outside_run_maintenance_dose_request
+```
+
+---
+
+### Remaining Work
+
+The timing configuration phase is complete.
+
+The remaining ISSUE-005 work is to create the actual controller state machine
+and dashboard state presentation.
+
+Remaining tasks include:
+
+* Define the authoritative controller-state entity.
+* Track current maintenance cycle count.
+* Display the active maintenance cycle as Cycle X of Y.
+* Display the maintenance mixing countdown.
+* Distinguish between:
+
+  * Waiting for low TDS
+  * Maintenance debounce
+  * Maintenance dosing
+  * Mixing
+  * Waiting before the next dose
+  * Completed
+  * Disabled
+  * Blocked
+  * Fault
+* Reflect active ESPHome pump and fill operation.
+* Reflect Auto Fill dwell and scheduled fill state.
+* Coordinate the configurable mixing time with the Node-RED delayed TDS capture.
+* Update dashboard cards to use the new controller state.
+* Perform one final supervised maintenance-dose validation.
+* Close ISSUE-006 after delayed TDS-after readings are confirmed accurate.
+
+---
+
+### Related Files
+
+Required:
+
+* `patio_controller.yaml`
+* `patio_dosing_controls.yaml`
+* `patio_system_constants.yaml`
+* `db_history_dashboard.yaml`
+
+As Needed:
+
+* Home Assistant automations related to Auto Fill and Auto Dose
+* `Flow-1_Hydroponics_Cycle_Manager.json`
+* `05-nutrient-management-and-ec-control.md`
+* `00-system-overview.md`
+
+---
+
+### Components Affected
+
+* ESPHome
+* Home Assistant
+* Node-RED
+* MariaDB
+* Dashboard
+* Documentation
+
+---
 
 ### Status
 
-Automation remains **disabled** until the maintenance dosing architecture is redesigned and validated.
+**OPEN – Timing Configuration Complete; Controller State Machine Pending**
 
 ---
 
+## ISSUE-006 – Maintenance Auto Dose
 
-## ISSUE-007 - Event Notes
+**Priority:** HIGH
 
-Priority: MEDIUM
+### Current Status
 
-Field Notes were added to preserve engineering observations.
+**Core implementation complete.**
 
-Need improvements:
+The maintenance dosing architecture has been redesigned and validated.
 
-- easier note entry
-- notes displayed cleanly
-- notes separated from fill-specific fields
+The patio_controller now supports maintenance dosing as an additional command
+path without requiring Home Assistant to change the Outside Control Mode.
 
-Status: OPEN
-
----
-
-# Inventory Recovery
-
-Container tare (matching container):
-190 g
-
-Cap:
-6 g
-
-Measured densities:
-
-Part A
-241 g / 200 mL = 1.205 g/mL
-
-Part B
-233 g / 200 mL = 1.165 g/mL
-
-Gross weights:
-
-Part A = 3500 g
-
-Part B = 3300 g
-
-Current inventory values require verification before permanent correction.
+The Home Assistant automation remains **disabled** while additional EC/TDS
+correlation data is collected before allowing unattended maintenance dosing.
 
 ---
 
-# Decisions Made Today
+## Original Problem
 
-- Maintenance Auto Dose remains disabled.
-- Auto Fill controller successfully completed validation.
-- Fill dosing remains proportional to gallons added until further evidence suggests otherwise.
-- EC correction should continue using post-fill maintenance dosing.
-- Permanent documentation will NOT be updated until all fixes are implemented and verified.
+The original maintenance dosing concept temporarily changed the global
+Outside Control Mode to **ESP-Override** in order to operate the nutrient
+pumps.
 
----
+This interrupted Auto Fill ownership and could cancel an active or pending
+automatic fill cycle.
 
-# Working Action List
-
-## HIGH
-
-- [ ] Repair Event History Dashboard
-- [ ] Fix Auto Fill Logged notification values
-- [ ] Fix Maintenance notification tank volume
-- [ ] Determine inventory update sequence
-- [ ] Redesign Maintenance Auto Dose controller
-- [ ] Add Controller State indicator
-- [ ] Investigate Manual ESP Override anomaly
-
-## MEDIUM
-
-- [ ] Fix duplicate notifications
-- [ ] Improve dashboard status cards
-- [ ] Improve Event Notes
-- [ ] Improve event rendering by event type
+That design has been retired.
 
 ---
 
-# Notes
+## Final Architecture
 
-This document is intentionally a working engineering notebook.
+Maintenance dosing is now implemented as a request into the existing
+`patio_controller`.
 
-Nothing contained here should be considered permanent design documentation until each issue has been fixed, tested, and verified.
+Home Assistant is responsible only for requesting a maintenance dose.
 
-## ISSUE-008 - Auto Fill Cycle State Machine
+The `patio_controller` remains the sole authority controlling all physical
+outputs.
 
-### Follow-Up UI Issue
-
-During an active fill, the Fill Duration display should avoid showing a negative value when the fill stop timestamp still belongs to the previous cycle.
-
-Possible fix:
-
-- If `outside_tank_fill_stopped` is older than `outside_tank_fill_started`, show:
-  - `Filling...`
-  - or current elapsed time since fill start
-  - or `unknown`
-
-Do not calculate duration using a stop timestamp from the previous fill.
-
-### Remaining Improvement - Auto Fill Cycle State Visibility
-
-During Auto Fill - Auto Dose, there is no clear operator feedback between:
-
-- fill completed
-- auto-dose started/completed
-- mixing dwell in progress
-- final TDS summary ready
-
-Needed:
-
-A visible cycle state such as:
-
-- Idle
-- Auto Fill Scheduled
-- Filling
-- Fill Complete - Dosing
-- Mixing / Waiting for TDS Stabilization
-- Cycle Complete
-- Fault / Interrupted
-
-Short-term improvement:
-
-Send one notification when fill completes:
-
-`Auto Fill Complete - Mixing`
-
-Example:
+### Maintenance Dose Sequence
 
 ```text
-Auto Fill completed.
-Water Added: 4.28 gal
-Dose A/B started or completed.
-Waiting 10 minutes for mixing before final cycle summary.
+HA detects low TDS voltage
+        ↓
+HA calculates proportional maintenance dose
+        ↓
+HA writes:
+  outside_maintenance_dose_request_a_ml
+  outside_maintenance_dose_request_b_ml
+        ↓
+HA presses:
+  button.hydroponics_patio_esp32_run_maintenance_dose_request
+        ↓
+patio_controller validates all safety gates
+        ↓
+Pump A
+        ↓
+5-second dwell
+        ↓
+Pump B
+        ↓
+Node-RED logs completed cycle
+        ↓
+HA waits 10-minute mixing period
+        ↓
+HA evaluates whether another maintenance cycle is required
 ```
+
+I also recommend changing the issue title itself from **"Maintenance Auto Dose"** to **"Closed-Loop Maintenance Dose Automation"** once you enable it. At that point, the architectural work (ISSUE-006) will be complete, and the remaining work will be about tuning the automatic control algorithm rather than implementing the feature.
+
+### Related Files
+
+Required:
+
+- 01-database-design.md
+- db_history_dashboard.yaml
+
+As Needed:
+
+- Hydroponics_Cycle_Manager.json
+- Node-RED history logging flow
+- maintenance_log table definition
+- v_hydro_recent_activity view
+
+### Components Affected
+
+- ESPHome
+- Home Assistant
+- Node-RED
+- MariaDB
+- Dashboard
+- Documentation
+
+---
+
+
+## ISSUE-007 – History / Logging Improvements
+
+**Priority:** MEDIUM
+
+### Scope
+
+Improve the usability and completeness of the Hydroponics history system.
+
+### Logging Improvements
+
+- Improve engineering field note entry.
+- Display notes more cleanly in the history browser.
+- Separate engineering notes from fill-specific information.
+- Continue improving history browsing and filtering.
+
+### History Display Improvements
+
+- Include the year in timestamps.
+
+Current:
+
+Mon, Jul 6, 2:09 PM
+
+Desired:
+
+Mon, Jul 6, 2026, 2:09 PM
+
+### Related Files
+
+Required:
+
+- 01-database-design.md
+- db_history_dashboard.yaml
+
+As Needed:
+
+- Hydroponics_Cycle_Manager.json
+- Node-RED history logging flow
+- maintenance_log table definition
+- v_hydro_recent_activity view
+
+### Components Affected
+
+- ESPHome
+- Home Assistant
+- Node-RED
+- MariaDB
+- Dashboard
+- Documentation
+
+### Status
+
+OPEN
+
+---
+
+## ISSUE-008 – Cycle Persistence & Dashboard State
+
+**Priority:** MEDIUM
+
+### Scope
+
+Improve dashboard behavior for completed cycles and controller restarts.
+
+### Current Problems
+
+ESPHome sensors represent only the current execution state.
+
+After an ESP reboot or firmware update, several dashboard values revert to
+their defaults because the controller has no knowledge of the previous cycle.
+
+Observed examples:
+
+- Last fill gallons
+- Dose A amount
+- Dose B amount
+- Pump runtimes
+- Fill duration
+- Other cycle summary values
+
+### Fill Duration Bug
+
+During an active fill, the Fill Duration display should never calculate
+against the stop timestamp from the previous fill.
+
+If:
+
+```text
+fill_stopped < fill_started
+```
+
+display:
+
+- Filling...
+- Current elapsed time
+- Unknown
+
+instead of a negative duration.
+
+### Design Direction
+
+ESPHome should publish live execution data only.
+
+Completed-cycle values should persist in Home Assistant helpers and be exposed
+through read-only template sensors for dashboard use.
+
+### Related Files
+
+Required:
+
+- 01-database-design.md
+- db_history_dashboard.yaml
+
+As Needed:
+
+- Hydroponics_Cycle_Manager.json
+- Node-RED history logging flow
+- maintenance_log table definition
+- v_hydro_recent_activity view
+
+### Components Affected
+
+- ESPHome
+- Home Assistant
+- Node-RED
+- MariaDB
+- Dashboard
+- Documentation
+
+### Status
+
+OPEN
+
+---
+
+# ISSUE-009 – Refactor Nutrient Pump Execution Architecture
+
+**Status:** Proposed  
+**Discovered:** 2026-07-07  
+**Priority:** Medium  
+**Dependencies:** Complete after ISSUE-006
+
+---
+
+# Purpose
+
+Reduce duplicated nutrient pump execution code by separating **dose calculation**
+from **pump execution** while preserving all existing functionality.
+
+This refactor will improve maintainability, simplify future enhancements, and
+reduce the risk of inconsistencies between Fill, Maintenance, and
+ESP-Override dosing.
+
+---
+
+# Current Architecture
+
+Each dosing mode currently performs both:
+
+- Dose calculation
+- Pump execution
+
+For example:
+
+## Fill Dose
+
+```text
+Determine gallons added
+Calculate nutrient mL
+Calculate pump runtime
+Publish runtime sensors
+Turn on pump
+```
+
+## ESP-Override Dose
+
+```text
+Read operator-entered mL
+Calculate pump runtime
+Publish runtime sensors
+Turn on pump
+```
+
+As a result, much of the pump execution logic is duplicated between scripts.
+
+---
+
+# Proposed Architecture
+
+Separate nutrient dosing into two logical layers.
+
+## Layer 1 – Dose Source
+
+Responsible only for determining the requested nutrient amount.
+
+### Fill Dose
+
+```text
+Gallons Added
+        │
+        ▼
+Requested Dose (mL)
+```
+
+### Maintenance Dose
+
+```text
+Maintenance Request
+        │
+        ▼
+Requested Dose (mL)
+```
+
+### ESP-Override
+
+```text
+Manual A Request
+Manual B Request
+```
+
+Layer 1 should **never** calculate pump runtimes.
+
+---
+
+## Layer 2 – Pump Execution
+
+Responsible only for executing a requested nutrient dose.
+
+Responsibilities:
+
+- Apply pump calibration
+- Calculate runtime
+- Publish dose sensors
+- Publish runtime sensors
+- Set running flags
+- Turn on physical pump
+
+Pump execution should not know whether the request originated from:
+
+- Fill replacement
+- Maintenance dosing
+- ESP-Override
+- Future automation
+
+Its only responsibility is:
+
+```text
+Dose this pump X milliliters.
+```
+
+---
+
+# Pump Calibration
+
+Pump calibration belongs exclusively within the pump execution layer.
+
+Each pump independently converts:
+
+```text
+Runtime (seconds) =
+Requested Dose (mL)
+-------------------
+Pump Calibration (mL/sec)
+```
+
+Pump A and Pump B intentionally remain independent because their calibrated
+flow rates may differ.
+
+---
+
+# Equal-Dose Modes
+
+The following operating modes always request identical nutrient amounts for
+both nutrient pumps:
+
+- Auto Fill - Auto Dose
+- Manual Fill - Auto Dose
+- Maintenance Dose
+
+These modes should calculate a single requested dose value and supply that
+same value to both pump execution routines.
+
+---
+
+# Independent-Dose Mode
+
+ESP-Override intentionally allows different requested amounts.
+
+```text
+Pump A = Manual A Dose
+
+Pump B = Manual B Dose
+```
+
+Because of this, ESP-Override remains a special case.
+
+---
+
+# Benefits
+
+This refactor will:
+
+- Eliminate duplicated runtime calculations.
+- Centralize pump calibration logic.
+- Improve long-term maintainability.
+- Simplify future maintenance dose implementation.
+- Reduce future regression risk.
+- Keep Fill, Maintenance, and ESP-Override execution consistent.
+
+---
+
+# Design Philosophy
+
+The controller should determine **how much** nutrient is required.
+
+The pump should determine **how long** it must run.
+
+Separating these responsibilities improves readability, testing, and future
+extensibility while minimizing duplicated code.
+
+---
+
+# Proposed Script Organization
+
+```text
+Fill Dose A
+        │
+        ▼
+Execute Pump A
+
+Fill Dose B
+        │
+        ▼
+Execute Pump B
+
+Maintenance Dose A
+        │
+        ▼
+Execute Pump A
+
+Maintenance Dose B
+        │
+        ▼
+Execute Pump B
+
+ESP-Override Dose A
+        │
+        ▼
+Execute Pump A
+
+ESP-Override Dose B
+        │
+        ▼
+Execute Pump B
+```
+
+The pump execution routines become the only location responsible for
+calibration and runtime calculations.
+
+---
+
+# Revision History
+
+| Date | Author | Description |
+|------|--------|-------------|
+| 2026-07-07 | GAL | Initial architecture proposal. |
+
+---
+
+## ISSUE-010 – Improve Field Note Entry
+
+**Priority:** MEDIUM
+
+### Current Status
+
+Functional, but the Home Assistant user interface makes entering engineering field notes cumbersome.
+
+### Current Behavior
+
+Field notes are stored correctly in `maintenance_log` as `NOTE` events.
+
+The current workflow uses:
+
+- `input_text.hydro_history_field_note`
+- Browser Mod popup
+- Date selector
+- Location selector
+- Save button
+
+Although the popup improves the workflow, the built-in Home Assistant `input_text` editor only provides a single-line text entry field.
+
+Longer engineering observations require horizontal scrolling, making them difficult to review and edit before saving.
+
+### Desired Behavior
+
+Provide a larger text entry experience suitable for engineering field observations.
+
+Desired capabilities include:
+
+- Multi-line text entry
+- Comfortable editing of longer notes
+- Ability to review the entire note before saving
+- Maintain the existing Browser Mod popup workflow
+
+### Possible Solutions
+
+Evaluate one or more of the following:
+
+- Replace the built-in `input_text` editor with a custom Lovelace textarea component.
+- Use a Browser Mod popup containing a custom card that supports multi-line text entry.
+- Develop a dedicated Field Note popup modeled after the Measure EC workflow.
+- Investigate alternative Home Assistant UI components that provide a true textarea experience.
+
+### Database Impact
+
+None.
+
+`maintenance_log` already supports the required note length.
+
+This issue is strictly a Home Assistant user interface improvement.
+
+### Status
+
+Deferred until higher-priority hydroponics control and EC calibration work is complete.

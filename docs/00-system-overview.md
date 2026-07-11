@@ -161,6 +161,49 @@ Each layer has a clearly defined responsibility.
 
 Keeping responsibilities separated makes the system easier to maintain and expand.
 
+## Home Assistant Package Organization
+
+Home Assistant packages are organized by **functional responsibility** rather than by entity type.
+
+Each package owns a specific portion of the hydroponic system and should contain
+the helpers, template entities, sensors, automations, and supporting logic
+required for that responsibility.
+
+### patio_system_constants.yaml
+
+Owns the physical characteristics and operating parameters of the patio
+hydroponic system.
+
+Examples include:
+
+- Tank capacity and operating limits
+- HX711 calibration
+- Flow calibration
+- Pump calibration
+- Auto-fill operating parameters
+- System-specific constants
+
+These values describe the physical system and may differ for each hydroponic
+installation.
+
+### patio_dosing_controls.yaml
+
+Owns the routine nutrient maintenance strategy.
+
+Examples include:
+
+- Maintenance dose thresholds
+- Target and hard-stop voltages
+- Maximum maintenance step size
+- Inventory lockout limits
+- Maintenance timing
+- Maximum maintenance cycles
+- Automatic nutrient dosing logic
+
+Separating system constants from dosing control allows future hydroponic
+controllers, such as a basement system, to maintain independent hardware
+configuration while reusing the same nutrient management architecture.
+
 ---
 
 # Future Development

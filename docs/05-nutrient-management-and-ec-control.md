@@ -53,6 +53,45 @@ The controller is intended to:
 - Record every nutrient addition for historical analysis.
 - Continuously improve probe calibration using field data.
 
+## Configurable Maintenance Timing
+
+Routine maintenance dosing uses several configurable timing parameters to allow
+the controller behavior to be tuned without modifying automation logic.
+
+### Maintenance Debounce
+
+Defines how long the probe voltage must remain below the maintenance threshold
+before a maintenance dose cycle is permitted to begin.
+
+This prevents transient voltage changes from initiating unnecessary nutrient
+corrections.
+
+### Mixing Time
+
+Defines how long the circulation system is allowed to mix newly added nutrients
+before the post-dose TDS measurement is evaluated.
+
+This value may require adjustment if tank volume or circulation flow rates are
+changed.
+
+### Next Maintenance Dose Offset
+
+Defines the minimum time that must elapse after completion of the mixing period
+before another automatic maintenance dose may begin.
+
+This provides a short stabilization period between consecutive maintenance dose
+cycles while allowing the controller to continue correcting nutrient levels if
+required.
+
+### Maximum Maintenance Cycles
+
+Defines the maximum number of consecutive automatic maintenance correction
+cycles permitted during a single maintenance event.
+
+This prevents repeated nutrient additions caused by abnormal sensor behavior or
+unexpected system faults while still allowing gradual correction toward the
+target operating range.
+
 ## Fill-Based Nutrient Replacement
 
 Whenever water is added to the system, the controller measures the actual gallons

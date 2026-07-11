@@ -1,0 +1,147 @@
+alias: Outside TDS Maintenance Auto Dose
+description: >
+  GAL 2026-07-10 ISSUE-006. Starts when maintenance Auto Dose is enabled
+  or when the debounced maintenance-dose trigger becomes ready. Home
+  Assistant writes the calculated A/B request helpers and presses the
+  ESPHome-owned maintenance dose request button. ESPHome remains the
+  execution authority for physical pump outputs and safety gates.
+
+triggers:
+  # ─────────────────────────────────────────────────────────────
+  # Start immediately when the operator enables maintenance
+  # Auto Dose. The action then waits for the 5-minute debounced
+  # binary sensor to become ready.
+  # ─────────────────────────────────────────────────────────────
+  - trigger: state
+    entity_id: input_boolean.outside_tds_auto_dose_enabled
+    from: "off"
+    to: "on"
+    id: auto_dose_enabled
+
+  # ─────────────────────────────────────────────────────────────
+  # Also start when a future low-TDS condition completes the
+  # debounce while Auto Dose is already enabled.
+  # ─────────────────────────────────────────────────────────────
+  - trigger: state
+    entity_id: binary_sensor.outside_maintenance_dose_due
+    from: "off"
+    to: "on"
+    id: maintenance_dose_due
+
+conditions: []
+
+actions:
+  # ─────────────────────────────────────────────────────────────
+  # When started by the Auto Dose enable switch, wait until either:
+  # - the 5-minute maintenance debounce completes, or
+  # - the operator disables Auto Dose.
+  #
+  # This creates an automation trace immediately when Auto Dose
+  # is turned on instead of relying on a hidden numeric crossing.
+  # ─────────────────────────────────────────────────────────────
+  - if:
+      - condition: trigger
+        id: auto_dose_enabled
+    then:
+      - wait_template: >-
+          {{
+            is_state(
+              'binary_sensor.outside_maintenance_dose_due',
+              'on'
+            )
+            or
+            is_state(
+              'input_boolean.outside_tds_auto_dose_enabled',
+              'off'
+            )
+          }}
+        continue_on_timeout: false
+
+      # Stop cleanly if the operator disabled Auto Dose while waiting.
+      - condition: state
+        entity_id: input_boolean.outside_tds_auto_dose_enabled
+        state: "on"
+
+      # Confirm the complete 5-minute debounce actually completed.
+      - condition: state
+        entity_id: binary_sensor.outside_maintenance_dose_due
+        state: "on"
+
+  # ─────────────────────────────────────────────────────────────
+  # Run the configured number of closed-loop maintenance cycles.
+  # Each cycle rechecks all safety and permission conditions.
+  # ─────────────────────────────────────────────────────────────
+  - repeat:
+      count: >-
+        {{
+          states('input_number.outside_auto_dose_max_cycles')
+            | int(2)
+        }}
+
+      sequence:
+        # Maintenance Auto Dose must remain enabled.
+        - condition: state
+          entity_id: input_boolean.outside_tds_auto_dose_enabled
+          state: "on"
+
+        # Central Home Assistant permission gate must remain valid.
+        - condition: state
+          entity_id: binary_sensor.outside_auto_dose_allowed
+          state: "on"
+
+        # Maintenance dosing is permitted only in normal automatic mode.
+        - condition: state
+          entity_id: input_select.hydroponics_outside_control_mode
+          state: "Auto Fill - Auto Dose"
+
+        # Do not maintenance-dose while the fill solenoid is active.
+        - condition: state
+          entity_id: switch.hydroponics_patio_esp32_water_fill_solenoid
+          state: "off"
+
+        # Both nutrient pump outputs must be idle.
+        - condition: state
+          entity_id: switch.hydroponics_patio_esp32_nutrient_pump_a
+          state: "off"
+
+        - condition: state
+          entity_id: switch.hydroponics_patio_esp32_nutrient_pump_b
+          state: "off"
+
+        # A maintenance dose is required only below the low threshold.
+        - condition: numeric_state
+          entity_id: sensor.hydroponics_patio_esp32_tds_raw
+          below: input_number.outside_tds_auto_dose_low_voltage
+
+        # Write the calculated nutrient B request for ESPHome.
+        - action: input_number.set_value
+          target:
+            entity_id: input_number.outside_maintenance_dose_request_b_ml
+          data:
+            value: >-
+              {{
+                states('sensor.outside_auto_dose_step_amount')
+                  | float(0)
+              }}
+
+        # GAL 2026-07-10 ISSUE-006:
+        # Allow the Home Assistant request helpers to propagate to
+        # ESPHome before pressing the controller request button.
+        - delay:
+            seconds: 2
+
+        # Press the confirmed working ESPHome maintenance-dose button.
+        - action: button.press
+          target:
+            entity_id: button.patio_hydroponics_outside_run_maintenance_dose_request
+
+        # Allow one complete tank-mixing period before reevaluation.
+        - delay:
+            minutes: 10
+
+        # Continue another cycle only while still below target voltage.
+        - condition: numeric_state
+          entity_id: sensor.hydroponics_patio_esp32_tds_raw
+          below: input_number.outside_tds_auto_dose_target_voltage
+
+mode: single
