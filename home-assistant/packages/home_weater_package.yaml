@@ -1,0 +1,272 @@
+###############################################################################
+# Home Weather Package
+# \config\packages\home_weather_package.yaml
+# GAL 2026-06-24
+#
+# Purpose:
+#   Consolidates the home rtl_433 weather sensors into one Home Assistant package.
+#   This is for the HOUSE Home Assistant server, not the RV system.
+#
+# Devices:
+#   - LaCrosse Breeze Pro: rtl_433home_915/LaCrosse-BreezePro/694658
+#   - LaCrosse R3 Rain Gauge: rtl_433home_915/LaCrosse-R3/7545577
+#
+# Notes:
+#   - These MQTT sensors were moved out of mqtt.yaml.
+#   - The old rain_sensors.yaml InfluxDB lookup sensors are no longer needed for
+#     normal dashboard rain totals because this HA server now owns the R3 sensor.
+#   - Rain totals below use utility_meter from the cumulative R3 rain counter.
+#   - Old InfluxDB/dashboard compatibility rain entities were intentionally
+#     removed. This package only keeps the new R3-based sensors.
+###############################################################################
+
+mqtt:
+  sensor:
+    ###########################################################################
+    # LaCrosse Breeze Pro - Home Weather Station
+    ###########################################################################
+
+    # GAL 2026-06-24: Raw outside temperature from the home Breeze Pro.
+    - name: "Breeze Pro Temp"
+      state_topic: "rtl_433home_915/LaCrosse-BreezePro/694658"
+      unit_of_measurement: "°F"
+      device_class: temperature
+      state_class: measurement
+      value_template: "{{ value_json.temperature_F | float(0) | round(1) }}"
+      force_update: true
+      payload_available: "online"
+      payload_not_available: "offline"
+      unique_id: 41CA5C2ED5344676
+
+    # GAL 2026-06-24: Raw relative humidity from the home Breeze Pro.
+    - name: "Breeze Pro Humidity"
+      state_topic: "rtl_433home_915/LaCrosse-BreezePro/694658"
+      unit_of_measurement: "%"
+      device_class: humidity
+      state_class: measurement
+      value_template: "{{ value_json.humidity | int(0) }}"
+      force_update: true
+      payload_available: "online"
+      payload_not_available: "offline"
+      unique_id: C871AF0D2B614F3E
+
+    # GAL 2026-06-24: Breeze Pro reported average wind speed.
+    - name: "Breeze Pro Wind Speed"
+      state_topic: "rtl_433home_915/LaCrosse-BreezePro/694658"
+      unit_of_measurement: "mph"
+      icon: "mdi:weather-windy"
+      state_class: measurement
+      value_template: "{{ value_json.wind_avg_mi_h | float(0) | round(1) }}"
+      force_update: true
+      payload_available: "online"
+      payload_not_available: "offline"
+      unique_id: 270ACE67A4E04805
+
+    # GAL 2026-06-24: Breeze Pro wind direction in degrees.
+    - name: "Breeze Pro Wind Dir"
+      state_topic: "rtl_433home_915/LaCrosse-BreezePro/694658"
+      unit_of_measurement: "°"
+      icon: "mdi:compass"
+      state_class: measurement
+      value_template: "{{ value_json.wind_dir_deg | int(0) }}"
+      force_update: true
+      payload_available: "online"
+      payload_not_available: "offline"
+      unique_id: 96FF51CCD0CE402C
+
+    ###########################################################################
+    # LaCrosse R3 Rain Gauge - Home Rainfall
+    ###########################################################################
+
+    # GAL 2026-06-24: R3 rain2_in field. Kept as a raw sensor because rtl_433
+    # exposes it directly. Depending on the LaCrosse reset behavior, this may be
+    # useful as the station's own daily/bucket value.
+    - name: "R3 Daily Rainfall"
+      state_topic: "rtl_433home_915/LaCrosse-R3/7545577"
+      unit_of_measurement: "in"
+      device_class: precipitation
+      state_class: total_increasing
+      icon: "mdi:rainy"
+      value_template: "{{ value_json.rain2_in | float(0) | round(5) }}"
+      force_update: true
+      payload_available: "online"
+      payload_not_available: "offline"
+      unique_id: r3_daily_rainfall
+
+    # GAL 2026-06-24: R3 cumulative rain counter. This is the source for the
+    # Home Assistant utility_meter rainfall totals below.
+    - name: "R3 Rain"
+      state_topic: "rtl_433home_915/LaCrosse-R3/7545577"
+      unit_of_measurement: "in"
+      device_class: precipitation
+      state_class: total_increasing
+      icon: "mdi:rainy"
+      value_template: "{{ value_json.rain_in | float(0) | round(5) }}"
+      force_update: true
+      payload_available: "online"
+      payload_not_available: "offline"
+      unique_id: r3_rain_total
+
+###############################################################################
+# Utility Meters
+###############################################################################
+# GAL 2026-06-24: These replace the old InfluxDB first-value lookup method.
+# Source is the cumulative R3 rain counter: sensor.r3_rain.
+#
+# If the R3 battery is removed or its total counter resets, utility_meter with
+# periodically_resetting: true should prevent a giant negative/positive jump.
+###############################################################################
+
+utility_meter:
+  r3_rain_hourly:
+    name: "R3 Rain Hourly"
+    source: sensor.r3_rain
+    cycle: hourly
+    periodically_resetting: true
+
+  r3_rain_daily:
+    name: "R3 Rain Daily"
+    source: sensor.r3_rain
+    cycle: daily
+    periodically_resetting: true
+
+  r3_rain_weekly:
+    name: "R3 Rain Weekly"
+    source: sensor.r3_rain
+    cycle: weekly
+    periodically_resetting: true
+
+  r3_rain_monthly:
+    name: "R3 Rain Monthly"
+    source: sensor.r3_rain
+    cycle: monthly
+    periodically_resetting: true
+
+  r3_rain_yearly:
+    name: "R3 Rain Yearly"
+    source: sensor.r3_rain
+    cycle: yearly
+    periodically_resetting: true
+
+###############################################################################
+# Statistics Sensors
+###############################################################################
+
+sensor:
+  ###########################################################################
+  # GAL 2026-06-24: Smoothed home wind speed for dashboard cards and feels-like.
+  ###########################################################################
+  - platform: statistics
+    name: "Wind Speed Avg"
+    entity_id: sensor.breeze_pro_wind_speed
+    state_characteristic: mean
+    max_age:
+      minutes: 5
+    sampling_size: 50
+
+###############################################################################
+# Template Sensors
+###############################################################################
+
+template:
+  - sensor:
+      #########################################################################
+      # Breeze Pro Derived Sensors
+      #########################################################################
+
+      # GAL 2026-06-24: Cardinal direction from Breeze Pro wind direction.
+      - name: "Breeze Pro Wind Direction"
+        state: >
+          {% set deg = states('sensor.breeze_pro_wind_dir') | float(none) %}
+          {% if deg is not none %}
+            {% set dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'] %}
+            {{ dirs[((deg + 11.25) / 22.5) | int % 16] }}
+          {% else %}
+            unknown
+          {% endif %}
+        icon: "mdi:compass-outline"
+        unique_id: breeze_pro_wind_direction_cardinal
+
+      # GAL 2026-06-24: Outdoor feels-like temperature.
+      # Uses heat index above 80°F, wind chill at/below 50°F when wind is >3 mph,
+      # and actual temperature for the middle range.
+      - name: "Feels Like"
+        state: >
+          {% set T = states('sensor.breeze_pro_temp') | float(none) %}
+          {% set RH = states('sensor.breeze_pro_humidity') | float(none) %}
+          {% set windspeed = states('sensor.wind_speed_avg') | float(0) %}
+
+          {% if T is not none and RH is not none %}
+            {% if T >= 80 %}
+              {% set C1 = -42.379 %}
+              {% set C2 = 2.04901523 %}
+              {% set C3 = 10.14333127 %}
+              {% set C4 = -0.22475541 %}
+              {% set C5 = -0.00683783 %}
+              {% set C6 = -0.05481717 %}
+              {% set C7 = 0.00122874 %}
+              {% set C8 = 0.00085282 %}
+              {% set C9 = -0.00000199 %}
+              {% set heat_index = C1 + C2*T + C3*RH + C4*T*RH + C5*T**2 + C6*RH**2 + C7*T**2*RH + C8*T*RH**2 + C9*T**2*RH**2 %}
+
+              {% if 80 <= T <= 112 and RH < 13 %}
+                {% set adjustment = ((13 - RH) / 4) * ((17 - ((T - 95) | abs)) / 17) ** 0.5 %}
+                {{ (heat_index - adjustment) | round(1) }}
+              {% elif 80 <= T <= 87 and RH > 85 %}
+                {% set adjustment = ((RH - 85) / 10) * ((87 - T) / 5) %}
+                {{ (heat_index + adjustment) | round(1) }}
+              {% else %}
+                {{ heat_index | round(1) }}
+              {% endif %}
+
+            {% elif T <= 50 and windspeed > 3 %}
+              {{ (35.74 + (0.6215 * T) - (35.75 * windspeed ** 0.16) + (0.4275 * T * windspeed ** 0.16)) | round(1) }}
+
+            {% else %}
+              {{ T | round(1) }}
+            {% endif %}
+          {% else %}
+            unknown
+          {% endif %}
+        unit_of_measurement: "°F"
+        device_class: temperature
+        state_class: measurement
+        unique_id: breeze_pro_feels_like
+
+
+  ###########################################################################
+  # GAL 2026-07-17: Rain Event Detection
+  #
+  # Purpose:
+  #   Turn Rain Active ON only when the cumulative R3 rain counter increases.
+  #
+  # Behavior:
+  #   - Repeated MQTT values do not count as rain.
+  #   - Counter resets or decreases do not count as rain.
+  #   - Unavailable and startup transitions do not count as rain.
+  #   - The binary sensor returns to OFF 15 minutes after the last increase.
+  ###########################################################################
+  - triggers:
+      - trigger: state
+        entity_id: sensor.r3_rain
+        not_from:
+          - "unknown"
+          - "unavailable"
+        not_to:
+          - "unknown"
+          - "unavailable"
+
+    binary_sensor:
+      - name: "Rain Active"
+        unique_id: rain_active
+        device_class: moisture
+        state: >
+          {% set previous = trigger.from_state.state | float(none) %}
+          {% set current = trigger.to_state.state | float(none) %}
+          {{
+            previous is not none
+            and current is not none
+            and current > previous
+          }}
+        auto_off:
+          minutes: 15

@@ -1,5 +1,5 @@
 # ==============================================================================
-# Package: patio_dosing_controls.yaml
+# Package: \config\packages\hydroponics\patio_dosing_controls.yaml
 
 # Project: Hydroponics Veggie Garden
 # Author: Greg Liebig
@@ -25,23 +25,37 @@
 #   is circulating. This is independent of the automatic refill controller.
 #
 # Control Strategy:
-#   • Current production auto-dose logic uses raw TDS probe voltage.mode
-#   • Outside Estimated EC provides a live engineering estimate of
-#     reservoir EC for dashboard monitoring and comparison against
-#     handheld EC reference measurements.
-#   • Rainfall and estimated dilution are recorded with each handheld
-#     EC reference to improve future calibration of the Estimated EC model.
-#   • Estimated EC is NOT yet used for automatic dosing decisions.
+#
+#   Production Operation
+#   --------------------
+#   • Current production auto-dose logic uses raw TDS probe voltage.
 #   • Calculates a step dose from:
 #
 #         Tank Volume × mL per Gallon
 #
 #   • Doses equal amounts of Nutrient A and Nutrient B.
-#   • Waits 10 minutes for complete circulation.
-#   • Rechecks probe voltage.
+#   • Waits for the configurable maintenance mixing period.
+#   • Rechecks probe voltage after mixing.
+#   • Applies a configurable offset before another maintenance dose may begin.
 #   • Repeats until:
 #       - Minimum voltage threshold is restored, OR
 #       - Maximum dose cycles are reached.
+#
+#   Engineering & Calibration
+#   -------------------------
+#   • Outside Estimated EC provides a live engineering estimate of
+#     reservoir EC for dashboard monitoring and comparison against
+#     handheld EC reference measurements.
+#   • Estimated EC is NOT currently used for automatic dosing.
+#   • Each EC reference measurement stores:
+#       - Estimated EC snapshot
+#       - Raw probe voltage
+#       - Handheld EC measurement
+#       - Rainfall and estimated dilution
+#   • EC model performance is tracked using the calculated EC error
+#     (handheld EC − Estimated EC).
+#   • Historical reference data is used to improve future Estimated
+#     EC calibration models.
 #
 # Operating Range
 # ----------------
@@ -94,9 +108,26 @@
 # • Suggested Dose sensors are informational only.
 # • Capacities come from patio_system_constants.yaml.
 # • Target TDS helpers are defined in patio_system_constants.yaml.
+# • Maintenance dose events are logged to maintenance_log.
+# • Handheld EC reference measurements are logged to
+#   hydro_tds_reference_reading for engineering analysis and
+#   Estimated EC model development.
 #
 # Revision History
 # ----------------
+# 2026-07-12  GAL  Expanded the EC reference engineering workflow.
+#                  Added Estimated EC snapshot storage with each
+#                  handheld EC reference measurement, rainfall
+#                  baseline tracking, EC model error (ec_error)
+#                  analysis, and Home Assistant engineering history
+#                  dashboard support. These changes establish the
+#                  long-term calibration dataset for future
+#                  temperature- and rainfall-compensated Estimated
+#                  EC models.
+# 2026-07-10  GAL  ISSUE-005: Added configurable maintenance debounce,
+#                  mixing time, and next-dose offset helpers. These helpers
+#                  centralize operator-adjustable timing values; active
+#                  automations and Node-RED will be updated separately.
 # 2026-07-03  GAL  Added rainfall/dilution context to EC reference workflow.
 #                  Rain total, rain since last EC reference, and estimated
 #                  rainwater added are now stored with handheld EC readings.
@@ -126,6 +157,23 @@ template:
       # Version: 0.1 (Initial Voltage-Only Field Calibration)
       #
       #   estimated_ec = (2.1632 × probe_voltage) - 2.4984
+      #
+      # Model Performance 26-07-06:
+      # - Version 0.1 is c-urrently biased low against recent handheld EC readings.
+      # - Estimated EC is being stored with each EC reference reading so model
+      #   error can be reviewed directly from the database and dashboard.
+      # - Do not revise the live formula until more post-ADS1115-3.3V data is collected.
+      #
+      # Mixing Delay
+      #
+      # Fixed at 10 minutes.
+      #
+      # Justification:
+      # - Tank capacity: 25 gallons maximum.
+      # - Circulation: approximately 10.5 L/min (≈2.8 gal/min).
+      # - Even with a completely full tank, 10 minutes provides
+      #   more than one complete tank turnover before the next
+      #   EC measurement and dose evaluation.
       #
       # Field Calibration Data:
       # - 2026-06-27  EC ≈ 2.0
@@ -252,9 +300,12 @@ template:
 
       # ─────────────────────────────────────────────────────────
       # Auto Dose Step Amount
-      # Equal amount used for both A and B during maintenance dosing.
-      # Formula:
-      # current tank gallons × configured mL/gal
+      #
+      # Purpose:
+      # - Calculates the next maintenance dose request amount.
+      # - Uses proportional step dosing based on raw TDS voltage.
+      # - HA calculates requested mL.
+      # - patio_controller only executes the requested amount.
       # ─────────────────────────────────────────────────────────
       - name: "Outside Auto Dose Step Amount"
         unique_id: outside_auto_dose_step_amount
@@ -263,28 +314,28 @@ template:
         state: >
           {% set gal = states('sensor.outside_tank_gallons') | float(0) %}
           {% set mlpg = states('input_number.outside_auto_dose_ml_per_gallon') | float(0) %}
-          {{ (gal * mlpg) | round(1) if gal > 0 else 0 }}
+          {% set v = states('sensor.hydroponics_patio_esp32_tds_raw') | float(0) %}
+          {% set low = states('input_number.outside_tds_auto_dose_low_voltage') | float(1.80) %}
+          {% set target = states('input_number.outside_tds_auto_dose_target_voltage') | float(2.00) %}
+
+          {% if gal <= 0 or mlpg <= 0 or target <= low or v >= target %}
+            0
+          {% else %}
+            {% set max_step_ml = gal * mlpg %}
+            {% set ratio = (target - v) / (target - low) %}
+            {% set ratio = [ratio, 1] | min %}
+            {% set ratio = [ratio, 0] | max %}
+            {{ (max_step_ml * ratio) | round(1) }}
+          {% endif %}
 
       # ─────────────────────────────────────────────────────────
       # Auto Dose Status
-      # Human-readable reason/status for dashboard display.
-      # Automation should still use the binary sensors for blocking.
-      # ─────────────────────────────────────────────────────────
-      # ─────────────────────────────────────────────────────────
-      # Auto Dose Status
-      # Human-readable reason/status for dashboard display.
       #
-      # This sensor does not control dosing directly.
-      # It explains why auto-dosing is allowed, needed, blocked,
-      # or locked out so troubleshooting can be done from the UI.
-      # ─────────────────────────────────────────────────────────
-      # ─────────────────────────────────────────────────────────
-      # Auto Dose Status
-      # Human-readable reason/status for dashboard display.
-      #
-      # This sensor does not control dosing directly.
-      # It explains why auto-dosing is ready, needed, blocked,
-      # or locked out so troubleshooting can be done from the UI.
+      # Purpose:
+      # - Human-readable dashboard status for maintenance dosing.
+      # - Does not control dosing directly.
+      # - Explains why auto-dosing is ready, needed, blocked,
+      #   locked out, or waiting.
       # ─────────────────────────────────────────────────────────
       - name: "Outside Auto Dose Status"
         unique_id: outside_auto_dose_status
@@ -294,8 +345,10 @@ template:
           {% set gal = states('sensor.outside_tank_gallons') %}
           {% set a_ml = states('sensor.outside_remaining_nutrient_a_ml') %}
           {% set b_ml = states('sensor.outside_remaining_nutrient_b_ml') %}
+          {% set mlpg = states('input_number.outside_auto_dose_ml_per_gallon') | float(0) %}
           {% set step_ml = states('sensor.outside_auto_dose_step_amount') | float(0) %}
           {% set low = states('input_number.outside_tds_auto_dose_low_voltage') | float(1.80) %}
+          {% set target = states('input_number.outside_tds_auto_dose_target_voltage') | float(2.00) %}
           {% set hard_stop = states('input_number.outside_tds_auto_dose_hard_stop_voltage') | float(2.10) %}
 
           {% if is_state('input_boolean.outside_tds_auto_dose_enabled', 'off') %}
@@ -308,6 +361,10 @@ template:
             Tank Unknown
           {% elif gal | float(0) <= 5 %}
             Tank Too Low
+          {% elif mlpg <= 0 %}
+            Step Dose Not Set
+          {% elif target <= low %}
+            Voltage Setup Error
           {% elif is_state('binary_sensor.mixing_confirmed', 'off') %}
             Mixing Not Confirmed
           {% elif is_state('binary_sensor.outside_nutrient_inventory_low', 'on') %}
@@ -316,18 +373,16 @@ template:
             Nutrient A Unknown
           {% elif b_ml in ['unknown', 'unavailable', 'none', ''] %}
             Nutrient B Unknown
-          {% elif step_ml <= 0 %}
-            Step Dose Not Set
-          {% elif a_ml | float(0) < step_ml %}
-            Not Enough A
-          {% elif b_ml | float(0) < step_ml %}
-            Not Enough B
           {% elif tds | float(9) >= hard_stop %}
             Hard Stop
+          {% elif tds | float(0) < low and step_ml <= 0 %}
+            Step Dose Error
           {% elif tds | float(0) < low %}
             Dose Needed
-          {% else %}
+          {% elif tds | float(0) >= target %}
             Ready
+          {% else %}
+            Waiting
           {% endif %}
 
   - binary_sensor:
@@ -367,34 +422,38 @@ template:
           {% set flow_west = states('sensor.hydroponics_patio_esp32_west_channel_flow') | float(0) %}
           {{ flow_east > 1 and flow_west > 1 }}
 
-      #─────────────────────────────────────────────────────────
+      # ─────────────────────────────────────────────────────────
       # Nutrient Inventory Low
       #
       # ON blocks automatic maintenance dosing.
       #
       # Uses the nutrient inventory percentage sensors:
-      #   sensor.outside_remaining_nutrient_a
-      #   sensor.outside_remaining_nutrient_b
+      # - sensor.outside_remaining_nutrient_a
+      # - sensor.outside_remaining_nutrient_b
       #
-      # Note:
-      # Although these entities report percentages, their entity IDs do not
-      # include "_pct". The "_ml" entities represent the remaining nutrient
-      # volume and are not used by this safety interlock.
-      #─────────────────────────────────────────────────────────
+      # Although these entities report percentages, their entity
+      # IDs do not include "_pct". The "_ml" entities represent
+      # remaining nutrient volume and are not used by this lockout.
+      #
+      # Unknown or unavailable inventory is treated as low so
+      # automatic maintenance dosing fails safe.
+      # ─────────────────────────────────────────────────────────
       - name: "Outside Nutrient Inventory Low"
         unique_id: outside_nutrient_inventory_low
         device_class: problem
         state: >
           {% set a = states('sensor.outside_remaining_nutrient_a') %}
           {% set b = states('sensor.outside_remaining_nutrient_b') %}
-          {% set limit = states('input_number.outside_auto_dose_inventory_low_pct') | float(20) %}
-          {% if a in ['unknown', 'unavailable', 'none', ''] or b in ['unknown', 'unavailable', 'none', ''] %}
+          {% set limit =
+            states('input_number.outside_auto_dose_inventory_low_pct')
+              | float(20)
+          %}
+          {% if a in ['unknown', 'unavailable', 'none', ''] or
+                b in ['unknown', 'unavailable', 'none', ''] %}
             true
           {% else %}
             {{ a | float(0) < limit or b | float(0) < limit }}
           {% endif %}
-
-      # ─────────────────────────────────────────────────────────
       # Outside Auto Dose Allowed
       # Master safety gate for maintenance auto-dosing.
       #
@@ -439,19 +498,112 @@ template:
             }}
           {% endif %}
 
+      # ─────────────────────────────────────────────────────────
+      # Outside Maintenance Dose Due
+      #
+      # GAL 2026-07-10 ISSUE-006
+      #
+      # Purpose:
+      # - Provides the debounced trigger for the Outside TDS
+      #   Maintenance Auto Dose UI automation.
+      # - Turns ON only after all required maintenance-dose
+      #   conditions remain continuously valid for five minutes.
+      # - Allows the timer to begin when Auto Dose is enabled while
+      #   the TDS voltage is already below the low threshold.
+      #
+      # This entity does not operate the nutrient pumps.
+      # The UI automation writes the A/B request helpers and presses
+      # the ESPHome-owned maintenance dose request button.
+      # ─────────────────────────────────────────────────────────
+      - name: "Outside Maintenance Dose Due"
+        unique_id: outside_maintenance_dose_due
+        icon: mdi:flask-plus-outline
+
+        availability: >-
+          {{
+            states('sensor.hydroponics_patio_esp32_tds_raw')
+              not in ['unknown', 'unavailable', 'none', '']
+            and
+            states('input_number.outside_tds_auto_dose_low_voltage')
+              not in ['unknown', 'unavailable', 'none', '']
+          }}
+
+        state: >-
+          {% set raw_voltage =
+            states('sensor.hydroponics_patio_esp32_tds_raw') | float(0)
+          %}
+          {% set low_voltage =
+            states('input_number.outside_tds_auto_dose_low_voltage') | float(0)
+          %}
+
+          {{
+            is_state(
+              'input_boolean.outside_tds_auto_dose_enabled',
+              'on'
+            )
+            and
+            is_state(
+              'binary_sensor.outside_auto_dose_allowed',
+              'on'
+            )
+            and
+            is_state(
+              'input_select.hydroponics_outside_control_mode',
+              'Auto Fill - Auto Dose'
+            )
+            and
+            is_state(
+              'switch.hydroponics_patio_esp32_water_fill_solenoid',
+              'off'
+            )
+            and
+            is_state(
+              'switch.hydroponics_patio_esp32_nutrient_pump_a',
+              'off'
+            )
+            and
+            is_state(
+              'switch.hydroponics_patio_esp32_nutrient_pump_b',
+              'off'
+            )
+            and
+            raw_voltage < low_voltage
+          }}
+
+        # GAL 2026-07-13 ISSUE-005:
+        # Temporarily restored to the proven fixed five-minute debounce
+        # while the configurable implementation is redesigned safely.
+        delay_on:
+          minutes: 5
+
 # ───────────────────────────────────────────────────────────────────────────────
-# 🤖 Outside TDS Maintenance Auto-Dose Enable
-# Purpose:
-# - Master operator enable/disable for maintenance auto-dosing.
-# - Automation must be OFF-safe unless this helper is ON.
-# - This does not dose by itself; it only allows the UI automation to run.
-# - Safety checks still block dosing for calibration mode, low inventory,
-#   invalid tank volume, no circulation, or high TDS voltage.
+# Input Boolean Helpers
 # ───────────────────────────────────────────────────────────────────────────────
 input_boolean:
+  # ───────────────────────────────────────────────────────────────────────────────
+  # 🤖 Outside TDS Maintenance Auto-Dose Enable
+  # Purpose:
+  # - Master operator enable/disable for maintenance auto-dosing.
+  # - Automation must be OFF-safe unless this helper is ON.
+  # - This does not dose by itself; it only allows the UI automation to run.
+  # - Safety checks still block dosing for calibration mode, low inventory,
+  #   invalid tank volume, no circulation, or high TDS voltage.
+  # ───────────────────────────────────────────────────────────────────────────────
   outside_tds_auto_dose_enabled:
     name: Outside TDS Auto Dose Enabled
     icon: mdi:robot-outline
+
+  # ─────────────────────────────────────────────────────────
+  # GAL 2026-07-07 ISSUE-006
+  # Auto-Dose Advanced Settings Display
+  # Purpose:
+  # - Controls visibility of Auto-Dose settings/debug entities only.
+  # - Avoids using the global calibration mode just to view this card.
+  # - Does not affect dosing logic.
+  # ─────────────────────────────────────────────────────────
+  outside_auto_dose_show_settings:
+    name: Outside Auto-Dose Show Settings
+    icon: mdi:tune-variant
 
 # ───────────────────────────────────────────────────────────────────────────────
 # 📦 Outside Dosing Totals (Helpers)
@@ -465,6 +617,7 @@ input_number:
   # Running totals since last batch (incremented by UI automations)
   # Seeded from reconciliation since 2025-08-06 (see maintenance log).
   # <-- 573.36 from your log; remove/change later if desired
+  # ─────────────────────────────────────────────────────────────
   outside_total_dose_a_ml:
     name: Outside Total Dose A (mL)
     unit_of_measurement: "mL"
@@ -482,6 +635,7 @@ input_number:
     max: 100000
     step: 0.1
     mode: box
+
   # ─────────────────────────────────────────────────────────────
   # TDS Maintenance Auto-Dosing Controls
   # Purpose:
@@ -494,10 +648,10 @@ input_number:
   # - Dose below outside_tds_auto_dose_low_voltage.
   # - Dose A and B equally.
   # - Dose amount scales by current tank gallons.
-  # - Wait 15 minutes between checks.
+  # - Wait for the configured mixing time before evaluating TDS-after.
+  # - Apply the configured next-dose offset before another cycle may begin.
   # - Never dose at/above outside_tds_auto_dose_hard_stop_voltage.
   # ─────────────────────────────────────────────────────────────
-
   outside_tds_auto_dose_low_voltage:
     name: Outside TDS Auto Dose Low Voltage
     unit_of_measurement: "V"
@@ -511,6 +665,15 @@ input_number:
     name: Outside TDS Auto Dose Hard Stop Voltage
     unit_of_measurement: "V"
     icon: mdi:octagon
+    min: 1.0
+    max: 2.5
+    step: 0.01
+    mode: box
+
+  outside_tds_auto_dose_target_voltage:
+    name: Outside TDS Auto Dose Target Voltage
+    unit_of_measurement: "V"
+    icon: mdi:bullseye-arrow
     min: 1.0
     max: 2.5
     step: 0.01
@@ -543,6 +706,61 @@ input_number:
     mode: box
 
   # ─────────────────────────────────────────────────────────────
+  # Maintenance Timing Controls
+  #
+  # GAL 2026-07-10 ISSUE-005
+  #
+  # Purpose:
+  # - Centralizes operator-adjustable timing values used by routine
+  #   maintenance auto-dosing.
+  # - Keeps timing values visible in the Auto-Dose Settings card.
+  # - Prevents the same operating value from being independently
+  #   hard-coded in Home Assistant and Node-RED.
+  #
+  # Implementation Status:
+  # - Helpers are defined here first as the single configuration source.
+  # - Existing automations and Node-RED timing will be migrated separately
+  #   and validated one change at a time.
+  # ─────────────────────────────────────────────────────────────
+
+  # Low TDS must remain continuously valid for this period before
+  # the first automatic maintenance dose is allowed to begin.
+  outside_maintenance_debounce_minutes:
+    name: Outside Maintenance Debounce
+    unit_of_measurement: "min"
+    icon: mdi:timer-sand
+    min: 0
+    max: 30
+    step: 1
+    initial: 5
+    mode: box
+
+  # Circulation time allowed after nutrient dosing before Node-RED
+  # captures TDS-after and finalizes the completed-cycle notification.
+  # This may be adjusted if tank volume or circulation flow changes.
+  outside_maintenance_mixing_minutes:
+    name: Outside Maintenance Mixing Time
+    unit_of_measurement: "min"
+    icon: mdi:rotate-3d-variant
+    min: 1
+    max: 30
+    step: 1
+    initial: 10
+    mode: box
+
+  # Additional lockout after the mixing period completes. Another
+  # automatic maintenance dose may not begin until this offset expires.
+  outside_maintenance_next_dose_offset_seconds:
+    name: Outside Maintenance Next Dose Offset
+    unit_of_measurement: "s"
+    icon: mdi:timer-lock-outline
+    min: 0
+    max: 600
+    step: 10
+    initial: 60
+    mode: box
+
+  # ─────────────────────────────────────────────────────────────
   # EC / TDS Reference Reading Entry
   #
   # Purpose:
@@ -555,12 +773,77 @@ input_number:
   # - EC readings are entered to one decimal place.
   # - If two indicators flash, enter the midpoint between them.
   # ─────────────────────────────────────────────────────────────
-
   outside_tds_meter_entry:
     name: Outside Meter Reading
     icon: mdi:meter-electric-outline
     min: 0
     max: 5
+    step: 0.1
+    mode: box
+
+  # ─────────────────────────────────────────────────────────────
+  # Rain Total at Last EC Reference
+  #
+  # Purpose:
+  # - Stores the cumulative rainfall total at the time of the
+  #   most recent successful EC reference measurement.
+  # - Used by the EC Reference workflow to determine rainfall
+  #   that occurred since the previous handheld measurement.
+  #
+  # Used By:
+  # - Node-RED Flow-2: TDS / EC Reference
+  #
+  # Workflow:
+  # - Read current cumulative rainfall.
+  # - Compare against this stored baseline.
+  # - Calculate rainfall since the previous EC reference.
+  # - Estimate rainwater dilution using tank dimensions and
+  #   the configured rain capture factor.
+  # - Store the calculated values in
+  #   hydro_tds_reference_reading.
+  # - Update this helper only after the database INSERT
+  #   completes successfully.
+  #
+  # Notes:
+  # - Represents a cumulative rainfall baseline, not rainfall
+  #   for an individual event.
+  # - Prevents cumulative rainfall from being counted more than
+  #   once across successive EC reference measurements.
+  # ─────────────────────────────────────────────────────────────
+  outside_rain_total_at_last_ec_reference:
+    name: Outside Rain Total at Last EC Reference
+    icon: mdi:weather-rainy
+    min: 0
+    max: 500
+    step: 0.001
+    unit_of_measurement: "in"
+    mode: box
+
+  # ─────────────────────────────────────────────────────────────
+  # Maintenance Dose Request Amounts
+  #
+  # Purpose:
+  # - HA writes these values before requesting a maintenance dose.
+  # - patio_controller reads these values and decides whether it is
+  #   allowed to run the physical dose pumps.
+  # - These do NOT directly operate pumps.
+  # - Maintenance dosing must never switch Outside Control Mode.
+  # ─────────────────────────────────────────────────────────────
+  outside_maintenance_dose_request_a_ml:
+    name: Outside Maintenance Dose Request A
+    unit_of_measurement: "mL"
+    icon: mdi:alpha-a-circle-outline
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+
+  outside_maintenance_dose_request_b_ml:
+    name: Outside Maintenance Dose Request B
+    unit_of_measurement: "mL"
+    icon: mdi:alpha-b-circle-outline
+    min: 0
+    max: 500
     step: 0.1
     mode: box
 

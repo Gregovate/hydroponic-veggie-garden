@@ -1,5 +1,5 @@
 #==============================================================================
-# Package: patio_controller.yaml
+# Package: \config\packages\hydroponics\patio_controller.yaml
 #
 # Project: Hydroponics Veggie Garden
 # Author: Greg Liebig
@@ -261,15 +261,30 @@ sensor:
 # Input Select Helpers
 #------------------------------------------------------------------------------
 input_select:
-  # 🔁 Control Mode Toggle (Auto/Manual)
-  # Used to determine if filling/dosing should run automatically or notify user for manual intervention
+  # ─────────────────────────────────────────────────────────
+  # Outside Hydroponics Controller Operating Mode
+  #
+  # Auto Fill - Auto Dose:
+  #   Fully automatic operation. The controller determines
+  #   when to fill and automatically doses nutrients based
+  #   on the measured water added.
+  #
+  # Manual Fill - Auto Dose:
+  #   Operator specifies the fill amount. The controller
+  #   automatically calculates and doses nutrients based on
+  #   the measured water added.
+  #
+  # ESP-Override:
+  #   Full manual maintenance mode. Fill and nutrient dosing
+  #   are controlled independently by the operator.
+  # ─────────────────────────────────────────────────────────
   hydroponics_outside_control_mode:
-    name: Hydroponics Outside Control Mode
+    name: Outside Controller Mode
     options:
-      - Auto
-      - Manual
+      - Auto Fill - Auto Dose
+      - Manual Fill - Auto Dose
       - ESP-Override
-    initial: Auto
+    initial: Auto Fill - Auto Dose
     icon: mdi:autorenew
 
 #------------------------------------------------------------------------------
@@ -378,8 +393,10 @@ input_number:
 # Input Boolean Helpers
 #------------------------------------------------------------------------------
 input_boolean:
-  # Added 25-08-04 to set a watchdog for autofill
+  # Auto Fill Gate
+  # ON means an automatic fill has been scheduled and is allowed to proceed.
+  # OFF means no auto-fill is currently armed.
   allow_auto_fill:
-    name: Allow Auto Fill Trigger
+    name: Auto Fill Gate
     initial: false
     icon: mdi:check-circle-outline

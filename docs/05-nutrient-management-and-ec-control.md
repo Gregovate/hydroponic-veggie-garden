@@ -230,8 +230,6 @@ Topics:
 
 # Probe Voltage vs. EC
 
-(TODO)
-
 The installed probe currently measures analog voltage rather than true EC.
 
 Discuss:
@@ -241,6 +239,31 @@ Discuss:
 - Probe aging
 - Installation effects
 - Why voltage should not be interpreted as calibrated EC
+
+### Future Validation
+
+Current engineering observations indicate that probe voltage is influenced by
+more than nutrient concentration alone.
+
+Ongoing investigation includes:
+
+- Probe installation location within the reservoir.
+- Water circulation and local mixing effects.
+- Tank volume.
+- Water temperature.
+- Probe aging and fouling.
+- Rainfall and dilution effects.
+
+The analog TDS interface board is currently powered from the 5 V supply while
+the ADS1115 ADC operates from the 3.3 V supply.
+
+Future increases in target EC during heavy fruit production should include
+validation of the maximum analog output voltage produced by the TDS interface
+board to ensure the signal remains within the safe operating range of the
+ADS1115 while providing adequate measurement resolution.
+
+These validation steps should be completed before implementing a final
+voltage-to-EC calibration model.
 
 ---
 

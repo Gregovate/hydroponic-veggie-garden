@@ -1,0 +1,150 @@
+# config/packages/hydroponics/patio_system_constants.yaml
+# ─────────────────────────────────────────────────────────────
+# 📦 Hydroponics Patio System Constants
+#
+# Purpose:
+# Defines the physical characteristics and system-specific operating
+# parameters for the Outside (Patio) hydroponic controller.
+#
+# This package owns configuration values that describe the physical
+# installation and environmental characteristics of the patio system.
+#
+# Examples include:
+# - Nutrient container capacities
+# - Auto-fill operating parameters
+# - Rainfall reference values
+# - Rain capture geometry
+# - System-specific constants
+#
+# These values may differ for future hydroponic systems (for example,
+# a basement installation) while the nutrient management architecture
+# remains the same.
+#
+# Created: 2025-08-04
+# Maintainer: Greg Liebig
+#
+# Revision History
+# ----------------
+# 2026-07-12  GAL  Restored rain reference and rain-capture helpers
+#                  required by Node-RED Flow-2 EC Reference Capture.
+#                  Added:
+#                    - outside_rain_total_at_last_ec_reference
+#                    - outside_tank_exposed_length_in
+#                    - outside_tank_exposed_width_in
+#                    - outside_tank_rain_capture_factor
+#
+# 2026-07-10  GAL  ISSUE-005: Added configurable Auto Fill Dwell helper.
+#                  Auto-fill dwell is now owned by this package as a
+#                  system-specific operating parameter.
+#
+# 2026-07-01  GAL  Reorganized package responsibilities.
+#                  System-specific physical characteristics and operating
+#                  constants moved to this package to support future
+#                  multi-controller installations.
+# ─────────────────────────────────────────────────────────────
+
+input_number:
+  # Nutrient container capacities
+  nutrient_a_capacity:
+    name: "Nutrient A Capacity"
+    min: 0
+    max: 5000
+    step: 10
+    unit_of_measurement: "mL"
+
+  nutrient_b_capacity:
+    name: "Nutrient B Capacity"
+    min: 0
+    max: 5000
+    step: 10
+    unit_of_measurement: "mL"
+
+  nutrient_low_alert_level:
+    name: "Alert if Remaining Nutrient <"
+    min: 0
+    max: 1000
+    step: 50
+    unit_of_measurement: "mL"
+
+  # ─────────────────────────────────────────────────────────────
+  # Auto-Fill Confidence Dwell
+  #
+  # GAL 2026-07-10 ISSUE-005
+  #
+  # Purpose:
+  # - Defines how long the patio auto-fill permission must remain active
+  #   before the automatic fill request is allowed to begin.
+  # - Provides confidence that the measured low-level condition is stable.
+  # - This is a system-specific operating parameter because scale behavior
+  #   and fill confidence may differ for future hydroponic controllers.
+  # - The value may be reduced over time as patio scale performance and
+  #   automatic fill reliability are validated.
+  #
+  # Implementation Status:
+  # - Helper is defined here first as the single configuration source.
+  # - The existing Auto Fill automation will be migrated separately and
+  #   validated before its hard-coded dwell is removed.
+  # ─────────────────────────────────────────────────────────────
+  outside_auto_fill_dwell_minutes:
+    name: Outside Auto Fill Dwell
+    unit_of_measurement: "min"
+    icon: mdi:timer-water-outline
+    min: 0
+    max: 120
+    step: 1
+    initial: 30
+    mode: box
+
+  # ─────────────────────────────────────────────────────────────
+  # Outside Tank Exposed Length
+  #
+  # Purpose:
+  # - Defines the exposed tank length used to estimate rainwater
+  #   captured by the patio reservoir.
+  # - Node-RED combines this value with tank width, rainfall since
+  #   the previous EC reference, and the rain capture factor.
+  # ─────────────────────────────────────────────────────────────
+  outside_tank_exposed_length_in:
+    name: Outside Tank Exposed Length
+    icon: mdi:ruler
+    min: 0
+    max: 120
+    step: 0.1
+    initial: 25
+    unit_of_measurement: "in"
+    mode: box
+
+  # ─────────────────────────────────────────────────────────────
+  # Outside Tank Exposed Width
+  #
+  # Purpose:
+  # - Defines the exposed tank width used to estimate rainwater
+  #   captured by the patio reservoir.
+  # - Used with the exposed length to calculate collection area.
+  # ─────────────────────────────────────────────────────────────
+  outside_tank_exposed_width_in:
+    name: Outside Tank Exposed Width
+    icon: mdi:ruler-square
+    min: 0
+    max: 120
+    step: 0.1
+    initial: 17
+    unit_of_measurement: "in"
+    mode: box
+
+  # ─────────────────────────────────────────────────────────────
+  # Outside Tank Rain Capture Factor
+  #
+  # Purpose:
+  # - Applies an engineering correction factor to the theoretical
+  #   rainwater volume captured by the exposed tank area.
+  # - A value of 1.0 represents full theoretical collection.
+  # ─────────────────────────────────────────────────────────────
+  outside_tank_rain_capture_factor:
+    name: Outside Tank Rain Capture Factor
+    icon: mdi:percent-outline
+    min: 0
+    max: 2
+    step: 0.01
+    initial: 1
+    mode: box

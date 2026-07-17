@@ -1,5 +1,5 @@
 #==============================================================================
-# Package: db_history_dashboard.yaml
+# Package: \config\packages\hydroponics\db_history_dashboard.yaml
 #
 # Project: Hydroponics Veggie Garden
 # Author: Greg Liebig
@@ -62,6 +62,18 @@
 
 mqtt:
   sensor:
+    # ─────────────────────────────────────────────────────────
+    # Hydro Recent Activity Text
+    #
+    # Source:
+    # - MQTT topic: hydro/history/recent
+    # - Node-RED: Hydro-History Browser flow
+    #
+    # Purpose:
+    # - Displays recent hydroponics activity in Home Assistant
+    # - Provides records used by the History Browser event cards
+    # - Supports event selection for operator notes
+    # ─────────────────────────────────────────────────────────
     - name: "Hydro Recent Activity Text"
       unique_id: hydro_recent_activity_text
       state_topic: "hydro/history/recent"
@@ -73,6 +85,27 @@ mqtt:
           "records": value_json.records,
           "updated_at": value_json.updated_at
         } | tojson }}
+
+    # ─────────────────────────────────────────────────────────
+    # EC Reference History
+    #
+    # Receives formatted EC reference history from Node-RED.
+    #
+    # Source:
+    # - MQTT topic: hydro/history/ec_reference
+    # - Node-RED: Hydro-History refresh branch
+    #
+    # Purpose:
+    # - Displays handheld EC reference checks in Home Assistant
+    # - Supports Estimated EC calibration work
+    # - Reduces need to open DBeaver for routine EC review
+    # ─────────────────────────────────────────────────────────
+    - name: "Hydro EC Reference History"
+      unique_id: hydro_ec_reference_history
+      state_topic: "hydro/history/ec_reference"
+      value_template: "{{ value_json.state }}"
+      json_attributes_topic: "hydro/history/ec_reference"
+      icon: mdi:chart-line
 
 #------------------------------------------------------------------------------
 # Input Number Helpers
