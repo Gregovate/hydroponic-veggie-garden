@@ -1,4 +1,4 @@
-# Auto Fill Validation & Debug Log
+# Hydroponics Engineering Issue Log
 **Date:** 2026-07-04
 
 > **Purpose**
@@ -10,7 +10,7 @@
 
 ---
 
-# Test Objective
+## Test Objective
 
 Validate the complete automatic fill cycle after changing the delay from 2 minutes to 30 minutes.
 
@@ -29,7 +29,7 @@ Test included:
 
 ---
 
-# Successful Results
+## Successful Results
 
 ## PASS - Auto Fill Trigger
 
@@ -129,7 +129,7 @@ The automatic fill dose restored nutrients proportional to the water added but
 did not restore the tank to the target EC of 2.0. A manual correction was
 required to obtain another calibration reference point.
 
-# Calibration History From This Test
+## Calibration History From This Test
 
 | Time | Event | Tank | Probe | Handheld EC |
 |------|------|------:|------:|------------:|
@@ -140,7 +140,7 @@ required to obtain another calibration reference point.
 
 ---
 
-# Decisions Made Today
+## Decisions Made Today
 
 - Maintenance Auto Dose remains disabled.
 - Auto Fill controller successfully completed validation.
@@ -150,7 +150,7 @@ required to obtain another calibration reference point.
 
 ---
 
-# Working Action List
+## Working Action List
 
 ## HIGH
 
@@ -171,7 +171,7 @@ required to obtain another calibration reference point.
 
 ---
 
-# Notes
+## Notes
 
 This document is intentionally a working engineering notebook.
 
@@ -179,7 +179,7 @@ Nothing contained here should be considered permanent design documentation until
 
 ---
 
-# Issues Discovered
+## Issues Discovered
 
 # ISSUE-001 - Event History Dashboard / Formatter
 
@@ -1081,7 +1081,7 @@ As Needed:
 
 ---
 
-# ISSUE-006 – Maintenance Auto Dose
+# ISSUE-006 – Closed-Loop Nutrient Dosing Automation
 
 **Priority:** HIGH
 
@@ -1176,7 +1176,7 @@ As Needed:
 - Dashboard
 - Documentation
 
-### Spawned ISSUE-011 for Additional TDS Meter install
+### Spawned ISSUE-011 for Additional TDS Meter install and system validation
 ---
 
 
@@ -1383,7 +1383,7 @@ Any direct relay control retained for diagnostics must:
 - display a clear warning,
 - and automatically return the pump to OFF.
 
-# 2026-07-22 Safety Incident
+## 2026-07-22 Safety Incident
 
 During a manual EC correction, the operator intended to run the controlled
 10 mL Nutrient B dose command but instead enabled the adjacent raw Pump B
@@ -1406,7 +1406,7 @@ This incident confirms that raw nutrient-pump switches must not be presented as
 normal operator controls.
 ---
 
-# Current Architecture
+## Current Architecture
 
 Each dosing mode currently performs both:
 
@@ -1438,7 +1438,7 @@ As a result, much of the pump execution logic is duplicated between scripts.
 
 ---
 
-# Proposed Architecture
+## Proposed Architecture
 
 Separate nutrient dosing into two logical layers.
 
@@ -1503,7 +1503,7 @@ Dose this pump X milliliters.
 
 ---
 
-# Pump Calibration
+## Pump Calibration
 
 Pump calibration belongs exclusively within the pump execution layer.
 
@@ -1521,7 +1521,7 @@ flow rates may differ.
 
 ---
 
-# Equal-Dose Modes
+## Equal-Dose Modes
 
 The following operating modes always request identical nutrient amounts for
 both nutrient pumps:
@@ -1535,7 +1535,7 @@ same value to both pump execution routines.
 
 ---
 
-# Independent-Dose Mode
+## Independent-Dose Mode
 
 ESP-Override intentionally allows different requested amounts.
 
@@ -1549,7 +1549,7 @@ Because of this, ESP-Override remains a special case.
 
 ---
 
-# Benefits
+## Benefits
 
 This refactor will:
 
@@ -1562,7 +1562,7 @@ This refactor will:
 
 ---
 
-# Design Philosophy
+## Design Philosophy
 
 The controller should determine **how much** nutrient is required.
 
@@ -1573,7 +1573,7 @@ extensibility while minimizing duplicated code.
 
 ---
 
-# Proposed Script Organization
+## Proposed Script Organization
 
 ```text
 Fill Dose A
@@ -1616,7 +1616,7 @@ calibration and runtime calculations.
 
 # ISSUE-010 – Improve Field Note Entry
 
-**Priority:** MEDIUM
+**Priority:** LOW
 
 ### Current Status
 
@@ -1674,7 +1674,7 @@ Deferred until higher-priority hydroponics control and EC calibration work is co
 
 ---
 
-# Related Refactoring (2026-07)
+#@ Related Refactoring (2026-07)
 
 While implementing the pump execution refactor, the nutrient measurement
 architecture was also modernized to support multiple analog probe channels and
@@ -1756,7 +1756,7 @@ improvements.
 
 ---
 
-# Revision History
+## Revision History
 
 | Date | Author | Description |
 |------|--------|-------------|

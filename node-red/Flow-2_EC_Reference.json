@@ -3,7 +3,7 @@
         "id": "tds_ref_capture_evt",
         "type": "server-state-changed",
         "z": "3ec2ad8e53afdcdc",
-        "name": "Capture TDS Reference Button",
+        "name": "Capture EC Reference Button",
         "server": "28f1afb.2a0725",
         "version": 6,
         "outputs": 1,
@@ -43,11 +43,12 @@
                 "valueType": "eventData"
             }
         ],
-        "x": 160,
-        "y": 1460,
+        "x": 170,
+        "y": 1680,
         "wires": [
             [
-                "tds_ref_get_voltage"
+                "tds_ref_get_voltage",
+                "3227d1395feb8e9e"
             ]
         ]
     },
@@ -55,7 +56,7 @@
         "id": "tds_ref_get_voltage",
         "type": "api-current-state",
         "z": "3ec2ad8e53afdcdc",
-        "name": "Get TDS Raw Voltage",
+        "name": "Get A0 Raw Voltage",
         "server": "28f1afb.2a0725",
         "version": 3,
         "outputs": 1,
@@ -67,7 +68,7 @@
         "blockInputOverrides": false,
         "outputProperties": [
             {
-                "property": "tds_voltage",
+                "property": "a0_raw_v",
                 "propertyType": "msg",
                 "value": "string",
                 "valueType": "entityState"
@@ -75,11 +76,11 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 280,
-        "y": 1540,
+        "x": 180,
+        "y": 1760,
         "wires": [
             [
-                "tds_ref_get_estimated_ec"
+                "5c0d293409c826c0"
             ]
         ]
     },
@@ -107,8 +108,8 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 450,
-        "y": 1620,
+        "x": 830,
+        "y": 1780,
         "wires": [
             [
                 "tds_ref_get_meter"
@@ -139,8 +140,8 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 510,
-        "y": 1460,
+        "x": 1010,
+        "y": 1680,
         "wires": [
             [
                 "tds_ref_get_units"
@@ -171,8 +172,8 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 660,
-        "y": 1540,
+        "x": 1140,
+        "y": 1760,
         "wires": [
             [
                 "tds_ref_get_note"
@@ -203,8 +204,8 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 780,
-        "y": 1620,
+        "x": 1200,
+        "y": 1840,
         "wires": [
             [
                 "aeca6bd7eb65702e"
@@ -215,29 +216,29 @@
         "id": "tds_ref_build_sql",
         "type": "function",
         "z": "3ec2ad8e53afdcdc",
-        "name": "Build TDS Reference INSERT SQL",
-        "func": "// ─────────────────────────────────────────────────────────────\n// Build TDS Reference INSERT SQL\n//\n// Purpose:\n// - Captures a handheld EC/TDS reference reading.\n// - Stores the installed probe voltage, current Estimated EC,\n//   tank gallons, water temperature, rainfall context, and note.\n// - Estimated EC is stored as a snapshot of the Home Assistant\n//   calculation at capture time so model accuracy can be reviewed\n//   later even if the formula changes.\n// ─────────────────────────────────────────────────────────────\n\nconst now = Date.now();\nconst lastCapture = flow.get(\"outside_tds_reference_last_capture_ms\") || 0;\n\nconst LOCKOUT_MS = 30000;\n\nif (now - lastCapture < LOCKOUT_MS) {\n    node.warn(`Ignored duplicate TDS reference capture inside ${LOCKOUT_MS / 1000} second lockout.`);\n    return null;\n}\n\nflow.set(\"outside_tds_reference_last_capture_ms\", now);\n\nfunction cleanNumber(value) {\n    if (value === undefined || value === null) return null;\n    const n = parseFloat(String(value).replace(/[^0-9.\\-]/g, \"\"));\n    return Number.isFinite(n) ? n : null;\n}\n\nfunction sqlText(value) {\n    if (value === undefined || value === null) return \"NULL\";\n    const s = String(value).trim();\n    if (s.length === 0) return \"NULL\";\n    return \"'\" + s.replace(/'/g, \"''\").slice(0, 255) + \"'\";\n}\n\nconst voltage = cleanNumber(msg.tds_voltage);\nconst estimatedEc = cleanNumber(msg.estimated_ec);\nconst meterValue = cleanNumber(msg.meter_value);\nconst gallons = cleanNumber(msg.tank_gallons);\nconst waterTemp = cleanNumber(msg.water_temp_f);\nconst rainTotal = cleanNumber(msg.rain_total_in);\nconst previousRain = cleanNumber(msg.previous_rain_total);\nconst tankLength = cleanNumber(msg.tank_length_in);\nconst tankWidth = cleanNumber(msg.tank_width_in);\nconst captureFactor = cleanNumber(msg.rain_capture_factor) ?? 1.0;\n\nconst units = String(msg.meter_units || \"ppm\").trim();\nconst note = msg.reference_note;\n\nlet rainSince = null;\nlet rainAddedGallons = null;\n\nif (\n    rainTotal !== null &&\n    previousRain !== null &&\n    tankLength !== null &&\n    tankWidth !== null\n) {\n    rainSince = Math.max(0, rainTotal - previousRain);\n    rainAddedGallons = rainSince * tankLength * tankWidth / 231 * captureFactor;\n}\n\nif (voltage === null) {\n    node.error(\"TDS reference capture failed: invalid TDS voltage\", msg);\n    return null;\n}\n\nif (meterValue === null || meterValue <= 0) {\n    node.error(\"TDS reference capture failed: manual meter value is missing or invalid\", msg);\n    return null;\n}\n\nmsg.topic = `\nINSERT INTO hydro_tds_reference_reading\n    (\n        system_key,\n        probe_voltage,\n        estimated_ec,\n        meter_value,\n        meter_units,\n        tank_gallons,\n        water_temp_f,\n        rain_total_in,\n        rain_since_last_reference_in,\n        estimated_rain_added_gal,\n        note\n    )\nVALUES\n    (\n        'outside',\n        ${voltage.toFixed(3)},\n        ${estimatedEc === null ? \"NULL\" : estimatedEc.toFixed(2)},\n        ${meterValue.toFixed(2)},\n        ${sqlText(units)},\n        ${gallons === null ? \"NULL\" : gallons.toFixed(2)},\n        ${waterTemp === null ? \"NULL\" : waterTemp.toFixed(1)},\n        ${rainTotal === null ? \"NULL\" : rainTotal.toFixed(3)},\n        ${rainSince === null ? \"NULL\" : rainSince.toFixed(3)},\n        ${rainAddedGallons === null ? \"NULL\" : rainAddedGallons.toFixed(3)},\n        ${sqlText(note)}\n    );\n`;\n\nmsg.payload = {\n    system_key: \"outside\",\n    probe_voltage: voltage,\n    estimated_ec: estimatedEc,\n    meter_value: meterValue,\n    meter_units: units,\n    tank_gallons: gallons,\n    water_temp_f: waterTemp,\n    rain_total_in: rainTotal,\n    rain_since_last_reference_in: rainSince,\n    estimated_rain_added_gal: rainAddedGallons,\n    note: note\n};\n\nreturn msg;",
+        "name": "Build EC Reference INSERT SQL",
+        "func": "// ─────────────────────────────────────────────────────────────\n// Build EC Reference INSERT SQL\n//\n// Purpose:\n// - Captures one handheld EC reference reading.\n// - Stores synchronized raw and filtered voltage snapshots for:\n//     A0 = KEYESTUDIO production/control channel\n//     A1 = DFRobot validation/reference channel\n// - Stores the current Estimated EC model output.\n// - Stores tank volume, temperature, rainfall context, and operator note.\n//\n// Revision History:\n//\n// GAL 2026-07-21\n// - Replaced legacy msg.tds_voltage and msg.a1_voltage properties.\n// - Added separate raw and filtered A0/A1 message properties.\n// - Updated SQL to use the corrected database column names:\n//     a0_raw_v\n//     a0_filtered_v\n//     a1_raw_v\n//     a1_filtered_v\n// - Moved the duplicate-capture timestamp update until after validation so\n//   an invalid reading does not prevent an immediate corrected retry.\n//\n// GAL 2026-07-20\n// - Added dual conductivity-channel logging.\n// - Added Estimated EC and rainfall-context capture.\n// - Added 30-second duplicate submission protection.\n// ─────────────────────────────────────────────────────────────\n\nconst now = Date.now();\nconst lastCapture =\n    flow.get(\"outside_tds_reference_last_capture_ms\") || 0;\n\nconst LOCKOUT_MS = 30000;\n\nif (now - lastCapture < LOCKOUT_MS) {\n    node.warn(\n        `Ignored duplicate EC reference capture inside ` +\n        `${LOCKOUT_MS / 1000} second lockout.`\n    );\n    return null;\n}\n\n/**\n * Convert a Home Assistant state or formatted value into a finite number.\n *\n * Returns null for:\n * - Missing values\n * - Empty strings\n * - unknown\n * - unavailable\n * - none\n * - null\n * - Non-numeric values\n */\nfunction cleanNumber(value) {\n    if (value === undefined || value === null) {\n        return null;\n    }\n\n    const text = String(value).trim().toLowerCase();\n\n    if (\n        text === \"\" ||\n        text === \"unknown\" ||\n        text === \"unavailable\" ||\n        text === \"none\" ||\n        text === \"null\"\n    ) {\n        return null;\n    }\n\n    const numberValue =\n        parseFloat(String(value).replace(/[^0-9.\\-]/g, \"\"));\n\n    return Number.isFinite(numberValue)\n        ? numberValue\n        : null;\n}\n\n/**\n * Safely format optional text for a MariaDB SQL statement.\n *\n * Empty or missing text is stored as SQL NULL.\n * Single quotes are escaped for MariaDB.\n * Text is limited to 255 characters.\n */\nfunction sqlText(value) {\n    if (value === undefined || value === null) {\n        return \"NULL\";\n    }\n\n    const text = String(value).trim();\n\n    if (text.length === 0) {\n        return \"NULL\";\n    }\n\n    return \"'\" +\n        text\n            .replace(/'/g, \"''\")\n            .slice(0, 255) +\n        \"'\";\n}\n\n/**\n * Format an optional number for SQL.\n *\n * Invalid or unavailable values are stored as SQL NULL.\n */\nfunction sqlNumber(value, decimals) {\n    return value === null\n        ? \"NULL\"\n        : value.toFixed(decimals);\n}\n\n// ─────────────────────────────────────────────────────────────\n// Conductivity voltage snapshots\n//\n// These message-property names describe the engineering meaning and are\n// intentionally independent of the current Home Assistant entity IDs.\n// ─────────────────────────────────────────────────────────────\n\nconst a0RawV =\n    cleanNumber(msg.a0_raw_v);\n\nconst a0FilteredV =\n    cleanNumber(msg.a0_filtered_v);\n\nconst a1RawV =\n    cleanNumber(msg.a1_raw_v);\n\nconst a1FilteredV =\n    cleanNumber(msg.a1_filtered_v);\n\n// ─────────────────────────────────────────────────────────────\n// Engineering and operator reference values\n// ─────────────────────────────────────────────────────────────\n\nconst estimatedEc =\n    cleanNumber(msg.estimated_ec);\n\nconst meterValue =\n    cleanNumber(msg.meter_value);\n\nconst gallons =\n    cleanNumber(msg.tank_gallons);\n\nconst waterTemp =\n    cleanNumber(msg.water_temp_f);\n\n// ─────────────────────────────────────────────────────────────\n// Rainfall and exposed-reservoir context\n// ─────────────────────────────────────────────────────────────\n\nconst rainTotal =\n    cleanNumber(msg.rain_total_in);\n\nconst previousRain =\n    cleanNumber(msg.previous_rain_total);\n\nconst tankLength =\n    cleanNumber(msg.tank_length_in);\n\nconst tankWidth =\n    cleanNumber(msg.tank_width_in);\n\nconst captureFactor =\n    cleanNumber(msg.rain_capture_factor) ?? 1.0;\n\nconst units =\n    String(msg.meter_units || \"EC\").trim();\n\nconst note =\n    msg.reference_note;\n\nlet rainSince = null;\nlet rainAddedGallons = null;\n\nif (\n    rainTotal !== null &&\n    previousRain !== null &&\n    tankLength !== null &&\n    tankWidth !== null\n) {\n    rainSince =\n        Math.max(0, rainTotal - previousRain);\n\n    rainAddedGallons =\n        rainSince *\n        tankLength *\n        tankWidth /\n        231 *\n        captureFactor;\n}\n\n// ─────────────────────────────────────────────────────────────\n// Required measurement validation\n//\n// All four voltage snapshots are required for new reference records.\n// This prevents partially populated calibration records from being written.\n// ─────────────────────────────────────────────────────────────\n\nif (a0RawV === null) {\n    node.error(\n        \"EC reference capture failed: invalid A0 raw voltage.\",\n        msg\n    );\n    return null;\n}\n\nif (a0FilteredV === null) {\n    node.error(\n        \"EC reference capture failed: invalid A0 filtered voltage.\",\n        msg\n    );\n    return null;\n}\n\nif (a1RawV === null) {\n    node.error(\n        \"EC reference capture failed: invalid A1 raw voltage.\",\n        msg\n    );\n    return null;\n}\n\nif (a1FilteredV === null) {\n    node.error(\n        \"EC reference capture failed: invalid A1 filtered voltage.\",\n        msg\n    );\n    return null;\n}\n\nif (meterValue === null || meterValue <= 0) {\n    node.error(\n        \"EC reference capture failed: handheld meter value is missing or invalid.\",\n        msg\n    );\n    return null;\n}\n\n// Validation passed. Start the duplicate-capture lockout now so a failed\n// validation does not block an immediate corrected capture.\nflow.set(\n    \"outside_tds_reference_last_capture_ms\",\n    now\n);\n\n// ─────────────────────────────────────────────────────────────\n// Build MariaDB INSERT\n// ─────────────────────────────────────────────────────────────\n\nmsg.topic = `\nINSERT INTO hydro_tds_reference_reading\n    (\n        system_key,\n        a0_raw_v,\n        a0_filtered_v,\n        a1_raw_v,\n        a1_filtered_v,\n        estimated_ec,\n        meter_value,\n        meter_units,\n        tank_gallons,\n        water_temp_f,\n        rain_total_in,\n        rain_since_last_reference_in,\n        estimated_rain_added_gal,\n        note\n    )\nVALUES\n    (\n        'outside',\n        ${a0RawV.toFixed(3)},\n        ${a0FilteredV.toFixed(3)},\n        ${a1RawV.toFixed(3)},\n        ${a1FilteredV.toFixed(3)},\n        ${sqlNumber(estimatedEc, 2)},\n        ${meterValue.toFixed(2)},\n        ${sqlText(units)},\n        ${sqlNumber(gallons, 2)},\n        ${sqlNumber(waterTemp, 1)},\n        ${sqlNumber(rainTotal, 3)},\n        ${sqlNumber(rainSince, 3)},\n        ${sqlNumber(rainAddedGallons, 3)},\n        ${sqlText(note)}\n    );\n`;\n\n// Structured engineering snapshot for debugging and downstream nodes.\nmsg.payload = {\n    system_key: \"outside\",\n\n    // KEYESTUDIO production/control channel.\n    a0_raw_v: a0RawV,\n    a0_filtered_v: a0FilteredV,\n\n    // DFRobot validation/reference channel.\n    a1_raw_v: a1RawV,\n    a1_filtered_v: a1FilteredV,\n\n    estimated_ec: estimatedEc,\n    meter_value: meterValue,\n    meter_units: units,\n    tank_gallons: gallons,\n    water_temp_f: waterTemp,\n    rain_total_in: rainTotal,\n    rain_since_last_reference_in: rainSince,\n    estimated_rain_added_gal: rainAddedGallons,\n    note: note\n};\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 1660,
-        "y": 1460,
+        "x": 2020,
+        "y": 1680,
         "wires": [
             [
                 "tds_ref_sql_preview",
                 "tds_ref_insert"
             ]
         ],
-        "info": "// ─────────────────────────────────────────────────────────────\r\n// Build TDS Reference INSERT SQL\r\n//\r\n// Purpose:\r\n// - Builds the SQL INSERT statement for a handheld EC/TDS\r\n//   reference measurement.\r\n// - Records the operating conditions at the moment the\r\n//   reference was taken.\r\n// - Provides the engineering dataset used to evaluate and\r\n//   improve the Estimated EC model.\r\n//\r\n// Database:\r\n//   hydro_tds_reference_reading\r\n//\r\n// Captured Data:\r\n// - Probe voltage\r\n// - Estimated EC (Home Assistant prediction)\r\n// - Handheld meter reading (ground truth)\r\n// - Meter units\r\n// - Tank gallons\r\n// - Water temperature\r\n// - Rainfall total\r\n// - Rainfall since previous reference\r\n// - Estimated rainwater added\r\n// - Operator note\r\n//\r\n// Notes:\r\n// - Estimated EC is stored as a snapshot of the controller's\r\n//   prediction at the time of the handheld measurement.\r\n// - This allows historical comparison of Estimated EC versus\r\n//   handheld EC even after the estimation model changes.\r\n// - Duplicate submissions are ignored for 30 seconds.\r\n// ─────────────────────────────────────────────────────────────"
+        "info": "# Build EC Reference INSERT SQL\r\n\r\nCreates the MariaDB `INSERT` statement for one handheld EC reference reading in `hydro_tds_reference_reading`.\r\n\r\n## Purpose\r\n\r\nThis node records a synchronized engineering snapshot when an operator enters a handheld EC reference measurement.\r\n\r\nThe reference record preserves:\r\n\r\n- Both conductivity input channels\r\n- Raw and filtered voltage values\r\n- The handheld EC measurement\r\n- The Estimated Tank EC model output\r\n- Reservoir and environmental context\r\n\r\n## Conductivity Channels\r\n\r\n- **A0 — KEYESTUDIO**\r\n  - Production/control conductivity channel\r\n- **A1 — DFRobot**\r\n  - Validation and comparison conductivity channel\r\n\r\nA0 and A1 values are analog voltages. They are not EC or TDS measurements.\r\n\r\n## Data-Layer Mapping\r\n\r\nThe Node-RED message properties and database columns use the same engineering names:\r\n\r\n| Measurement | Node-RED property | Database column |\r\n|---|---|---|\r\n| A0 raw voltage | `msg.a0_raw_v` | `a0_raw_v` |\r\n| A0 filtered voltage | `msg.a0_filtered_v` | `a0_filtered_v` |\r\n| A1 raw voltage | `msg.a1_raw_v` | `a1_raw_v` |\r\n| A1 filtered voltage | `msg.a1_filtered_v` | `a1_filtered_v` |\r\n\r\nThe Home Assistant entity IDs are configured in the upstream Current State nodes.\r\n\r\nThis separation is intentional:\r\n\r\n- Home Assistant entity IDs may be renamed later.\r\n- Node-RED message properties describe the engineering measurement.\r\n- Database columns preserve the same engineering meaning.\r\n\r\nWhen a Home Assistant sensor is renamed, only the entity ID in the corresponding Current State node should need to change.\r\n\r\n## Recorded Fields\r\n\r\n### Required\r\n\r\n- A0 raw voltage\r\n- A0 filtered voltage\r\n- A1 raw voltage\r\n- A1 filtered voltage\r\n- Handheld meter value\r\n\r\n### Optional Context\r\n\r\n- Estimated Tank EC\r\n- Handheld meter units\r\n- Tank gallons\r\n- Water temperature\r\n- Current rain total\r\n- Rainfall since the previous EC reference\r\n- Estimated rainwater added to the reservoir\r\n- Operator-entered reference note\r\n\r\nOptional unavailable values are stored as SQL `NULL`.\r\n\r\n## Validation\r\n\r\nThe SQL statement is not created when any required measurement is missing, unavailable, or invalid.\r\n\r\nThe handheld meter value must also be greater than zero.\r\n\r\nA failed validation does not activate the duplicate-capture lockout, allowing the operator to correct the input and retry immediately.\r\n\r\n## Duplicate Protection\r\n\r\nAfter a valid capture passes validation, additional captures are ignored for 30 seconds.\r\n\r\nThis prevents duplicate database records caused by repeated button events or accidental double submission.\r\n\r\n## Outputs\r\n\r\n- `msg.topic` contains the MariaDB `INSERT` statement.\r\n- `msg.payload` contains the structured engineering snapshot for debugging and downstream processing."
     },
     {
         "id": "tds_ref_sql_preview",
         "type": "debug",
         "z": "3ec2ad8e53afdcdc",
-        "name": "TDS Reference SQL Preview",
+        "name": "EC Reference SQL Preview",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -246,8 +247,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 1960,
-        "y": 1400,
+        "x": 2320,
+        "y": 1620,
         "wires": []
     },
     {
@@ -255,9 +256,9 @@
         "type": "mysql",
         "z": "3ec2ad8e53afdcdc",
         "mydb": "mysql_logbook_placeholder",
-        "name": "Insert TDS Reference Reading",
-        "x": 1830,
-        "y": 1540,
+        "name": "Insert EC Reference Reading",
+        "x": 2180,
+        "y": 1760,
         "wires": [
             [
                 "tds_ref_insert_result",
@@ -269,7 +270,7 @@
         "id": "tds_ref_insert_result",
         "type": "debug",
         "z": "3ec2ad8e53afdcdc",
-        "name": "TDS Reference Insert Result",
+        "name": "EC Reference Insert Result",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -278,8 +279,8 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 2120,
-        "y": 1480,
+        "x": 2480,
+        "y": 1700,
         "wires": []
     },
     {
@@ -305,8 +306,8 @@
         "blockInputOverrides": false,
         "domain": "input_text",
         "service": "set_value",
-        "x": 2380,
-        "y": 1620,
+        "x": 2740,
+        "y": 1840,
         "wires": [
             [
                 "reset_tds_units"
@@ -336,8 +337,8 @@
         "blockInputOverrides": false,
         "domain": "input_select",
         "service": "select_option",
-        "x": 2650,
-        "y": 1620,
+        "x": 3010,
+        "y": 1840,
         "wires": [
             [
                 "49f9f57f5be6257f"
@@ -368,31 +369,13 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 820,
-        "y": 1460,
+        "x": 1320,
+        "y": 1680,
         "wires": [
             [
-                "1e4cbe5be3e11555",
                 "tds_ref_get_rain_total"
             ]
         ]
-    },
-    {
-        "id": "1e4cbe5be3e11555",
-        "type": "debug",
-        "z": "3ec2ad8e53afdcdc",
-        "name": "Tank Temp Check",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "true",
-        "targetType": "full",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 1030,
-        "y": 1380,
-        "wires": []
     },
     {
         "id": "49f9f57f5be6257f",
@@ -417,8 +400,8 @@
         "blockInputOverrides": false,
         "domain": "script",
         "service": "hydro_history_refresh",
-        "x": 2970,
-        "y": 1620,
+        "x": 3330,
+        "y": 1840,
         "wires": [
             []
         ]
@@ -446,8 +429,8 @@
         "blockInputOverrides": false,
         "domain": "input_number",
         "service": "set_value",
-        "x": 2080,
-        "y": 1620,
+        "x": 2440,
+        "y": 1840,
         "wires": [
             [
                 "clear_tds_reference_note"
@@ -478,8 +461,8 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 1000,
-        "y": 1540,
+        "x": 1440,
+        "y": 1760,
         "wires": [
             [
                 "tds_ref_get_prev_rain_total"
@@ -510,8 +493,8 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 1130,
-        "y": 1620,
+        "x": 1530,
+        "y": 1840,
         "wires": [
             [
                 "tds_ref_get_tank_length"
@@ -542,8 +525,8 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 1190,
-        "y": 1460,
+        "x": 1650,
+        "y": 1680,
         "wires": [
             [
                 "tds_ref_get_tank_width"
@@ -574,8 +557,8 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 1350,
-        "y": 1540,
+        "x": 1750,
+        "y": 1760,
         "wires": [
             [
                 "tds_ref_get_rain_capture_factor"
@@ -606,8 +589,8 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 1470,
-        "y": 1620,
+        "x": 1830,
+        "y": 1840,
         "wires": [
             [
                 "tds_ref_build_sql"
@@ -637,8 +620,8 @@
         "blockInputOverrides": false,
         "domain": "input_number",
         "service": "set_value",
-        "x": 1800,
-        "y": 1620,
+        "x": 2160,
+        "y": 1840,
         "wires": [
             [
                 "clear_tds_meter_entry"
@@ -669,11 +652,124 @@
         ],
         "for": "",
         "forType": "num",
-        "x": 190,
-        "y": 1620,
+        "x": 490,
+        "y": 1820,
         "wires": [
             [
                 "tds_ref_get_gallons"
+            ]
+        ]
+    },
+    {
+        "id": "3227d1395feb8e9e",
+        "type": "debug",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Save EC Button",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 440,
+        "y": 1580,
+        "wires": []
+    },
+    {
+        "id": "tds_ref_get_a1_voltage",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get A1 Filtered Voltage",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.patio_hydroponics_outside_a1_filtered_v",
+        "state_type": "str",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "a1_filtered_v",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 510,
+        "y": 1740,
+        "wires": [
+            [
+                "tds_ref_get_estimated_ec"
+            ]
+        ]
+    },
+    {
+        "id": "5c0d293409c826c0",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get A0 Filtered Voltage",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.patio_hydroponics_outside_a0_filtered_v",
+        "state_type": "str",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "a0_filtered_v",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 190,
+        "y": 1820,
+        "wires": [
+            [
+                "a949e24a3fceef0c"
+            ]
+        ]
+    },
+    {
+        "id": "a949e24a3fceef0c",
+        "type": "api-current-state",
+        "z": "3ec2ad8e53afdcdc",
+        "name": "Get A1 Raw Voltage",
+        "server": "28f1afb.2a0725",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.patio_hydroponics_outside_dfrobot_tds_raw",
+        "state_type": "str",
+        "blockInputOverrides": false,
+        "outputProperties": [
+            {
+                "property": "a1_raw_v",
+                "propertyType": "msg",
+                "value": "string",
+                "valueType": "entityState"
+            }
+        ],
+        "for": "",
+        "forType": "num",
+        "x": 500,
+        "y": 1680,
+        "wires": [
+            [
+                "tds_ref_get_a1_voltage"
             ]
         ]
     },
@@ -718,7 +814,7 @@
         "charset": "UTF8"
     },
     {
-        "id": "e1c85ccd7ffe9d2c",
+        "id": "cc9c65a6ade82a51",
         "type": "global-config",
         "env": [],
         "modules": {
