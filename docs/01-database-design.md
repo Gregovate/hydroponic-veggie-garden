@@ -714,25 +714,25 @@ Referenced by:
 
 ## `hydro_harvest`
 
-**Status:** ✅ Implemented  
+**Status:** ✅ Production  
 **Purpose:** Records harvested produce from a planting assignment. Multiple harvests may be recorded for the same planting throughout the growing season.  
-**Written By:** Harvest workflow.  
-**Read By:** Harvest history, production reporting, and future cost analysis.
+**Written By:** Node-RED Harvest workflow.  
+**Read By:** Hydro-History, harvest reporting, production analysis, and future cost analysis.
 
 ### Columns
 
 | Column | Type | Notes |
 |--------|------|------|
 | `harvest_id` | int auto_increment | Primary key |
-| `planting_id` | int | References `hydro_season_planting` |
-| `harvested_at` | datetime | Harvest timestamp |
-| `harvest_count` | int | Quantity harvested |
-| `harvest_unit` | varchar(20) | Count unit (default `item`) |
-| `total_weight` | decimal(10,3) | Total harvested weight |
-| `weight_unit` | enum | `lb`, `oz`, `g`, `kg` |
-| `quality` | enum | `good`, `mixed`, `poor`, `waste` |
-| `notes` | text | Optional notes |
-| `created_at` | datetime | Record creation timestamp |
+| `planting_id` | int | Required reference to `hydro_season_planting.planting_id` |
+| `harvested_at` | datetime | Local harvest timestamp; defaults to the local database time |
+| `harvest_count` | int nullable | Optional quantity harvested; stored as `NULL` when count was not entered |
+| `harvest_unit` | varchar(20) | Unit associated with `harvest_count`; currently defaults to `item` |
+| `total_weight` | decimal(10,3) nullable | Optional total harvested weight; stored as entered by the operator |
+| `weight_unit` | enum | Operator-selected weight unit (lb, oz, g, kg); always populated |
+| `quality` | enum nullable | Harvest classification: `good`, `mixed`, `poor`, or `waste`; the current Harvest workflow writes `good` |
+| `notes` | text nullable | Optional operator note |
+| `created_at` | datetime | Local record-creation timestamp; defaults to the local database time |
 
 ### Relationships
 
@@ -740,19 +740,38 @@ References:
 
 - `hydro_season_planting.planting_id`
 
+Foreign-key behavior:
+
+- Updates to `planting_id` cascade to related harvest records.
+- A planting assignment cannot be deleted while harvest records reference it.
+
 ### Indexes
 
 | Index | Type | Columns |
 |--------|------|---------|
 | `PRIMARY` | Primary Key | `harvest_id` |
-| `fk_hydro_harvest_planting` | Foreign Key | `planting_id` |
+| `idx_hydro_harvest_planting` | Index | `planting_id` |
 | `idx_hydro_harvest_date` | Index | `harvested_at` |
+
+### Constraints
+
+| Constraint | Type | Columns |
+|------------|------|---------|
+| `fk_hydro_harvest_planting` | Foreign Key | `planting_id` → `hydro_season_planting.planting_id` |
 
 ### Business Rules
 
 - Every harvest belongs to one planting assignment.
 - A planting may have multiple harvest records.
 - Season, position, crop, and variety are derived through the planting assignment.
+- Harvest count and harvest weight are independently optional.
+- At least one of `harvest_count` or `total_weight` must be greater than zero before the workflow permits an insert.
+- `harvest_unit` applies only to `harvest_count`.
+- `weight_unit` applies only to `total_weight`.
+- Harvest weight is stored in the unit selected by the operator; the workflow does not convert the value before insertion.
+- `weight_unit` is always populated, even when `total_weight` is `NULL`, so the record has a defined unit if weight is added or edited later.
+- The Harvest dashboard retains the last-selected weight unit after submission while clearing the planting, count, weight, and note fields.
+- All operational timestamps are stored in local system time.
 
 ---
 

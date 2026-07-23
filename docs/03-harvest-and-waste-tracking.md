@@ -158,16 +158,31 @@ normalization for cross-season production analysis.
 
 (TODO)
 
-Describe planned reporting capabilities.
+The Harvest & Waste Tracking system is designed to support long-term production analysis and seasonal performance reporting.
 
-Examples:
+## Reporting Standards
 
-- Yield by crop variety
+- Individual harvest records preserve the operator-entered weight and measurement unit.
+- Harvest reports and production summaries normalize all weight values to **pounds (lb)** for presentation, regardless of the unit originally recorded.
+- No unit conversion is performed when storing harvest records. Unit conversion occurs only during reporting.
+
+## Planned Reporting
+
+Examples include:
+
+- Yield by crop
+- Yield by variety
 - Yield by growing position
+- Yield by planting
 - Yield by season
 - Harvest frequency
 - Average production per plant
+- Average production per harvest
+- Total production by month
 - Total annual production
+- Total waste by crop
+- Harvest-to-waste ratio
+- Production trends across multiple growing seasons
 
 ---
 

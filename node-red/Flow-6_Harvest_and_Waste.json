@@ -1,0 +1,142 @@
+[
+    {
+        "id": "harvest_flow_tab_20260722",
+        "type": "tab",
+        "label": "Hydroponics - Harvest Entry",
+        "disabled": false,
+        "info": "Loads active planting assignments from MariaDB and populates the Home Assistant harvest planting selector.",
+        "env": []
+    },
+    {
+        "id": "harvest_load_plantings",
+        "type": "inject",
+        "z": "harvest_flow_tab_20260722",
+        "name": "Load Active Harvest Plantings",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 5,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 190,
+        "y": 120,
+        "wires": [
+            [
+                "harvest_build_planting_select"
+            ]
+        ]
+    },
+    {
+        "id": "harvest_build_planting_select",
+        "type": "function",
+        "z": "harvest_flow_tab_20260722",
+        "name": "Build Active Planting SELECT",
+        "func": "// \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n// Build Active Planting SELECT\n//\n// Purpose:\n//   Retrieve occupied planting assignments from the active outside\n//   hydroponics season for the Home Assistant harvest selector.\n//\n// Ownership:\n//   Node-RED reads v_hydro_current_planting.\n//   MariaDB remains authoritative for planting relationships.\n//\n// GAL 2026-07-22\n// - Initial production harvest selector query.\n// \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\nmsg.topic = `\nSELECT\n    planting_id,\n    position_code,\n    channel,\n    crop_name,\n    variety_name,\n    plant_count\nFROM v_hydro_current_planting\nWHERE system_key = 'outside'\n  AND planting_status = 'planted'\nORDER BY\n    CASE channel\n        WHEN 'East' THEN 1\n        WHEN 'West' THEN 2\n        ELSE 3\n    END,\n    position_number;\n`;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 470,
+        "y": 120,
+        "wires": [
+            [
+                "harvest_query_active_plantings"
+            ]
+        ]
+    },
+    {
+        "id": "harvest_query_active_plantings",
+        "type": "mysql",
+        "z": "harvest_flow_tab_20260722",
+        "mydb": "mysql_logbook_placeholder",
+        "name": "Query Active Plantings",
+        "x": 760,
+        "y": 120,
+        "wires": [
+            [
+                "harvest_format_planting_options"
+            ]
+        ]
+    },
+    {
+        "id": "harvest_format_planting_options",
+        "type": "function",
+        "z": "harvest_flow_tab_20260722",
+        "name": "Build Harvest Selector Options",
+        "func": "// \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n// Build Harvest Selector Options\n//\n// Purpose:\n//   Convert active planting rows into operator-facing Home Assistant\n//   input_select options and retain the matching planting_id map.\n//\n// Display example:\n//   E1 \u2014 Sweet Bell Pepper\n//\n// Stored flow context:\n//   harvestPlantingMap\n//     Maps the displayed selector option to its planting_id.\n//\n// GAL 2026-07-22\n// - Initial production option formatter and planting ID map.\n// \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\nconst rows = Array.isArray(msg.payload) ? msg.payload : [];\n\nconst options = [\"(select planting)\"];\nconst plantingMap = {};\n\nfor (const row of rows) {\n    const position = String(row.position_code || \"\").trim();\n    const variety = String(row.variety_name || \"\").trim();\n    const crop = String(row.crop_name || \"\").trim();\n\n    if (!position || !variety || !crop) {\n        continue;\n    }\n\n    const option = `${position} \u2014 ${variety} ${crop}`;\n\n    options.push(option);\n    plantingMap[option] = Number(row.planting_id);\n}\n\n// Retain the authoritative option-to-planting relationship for the\n// later harvest submission flow.\nflow.set(\"harvestPlantingMap\", plantingMap);\n\nmsg.options = options;\nmsg.plantingMap = plantingMap;\nmsg.payload = {\n    options: options\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1040,
+        "y": 120,
+        "wires": [
+            [
+                "harvest_set_input_select_options",
+                "harvest_debug_options"
+            ]
+        ]
+    },
+    {
+        "id": "harvest_set_input_select_options",
+        "type": "api-call-service",
+        "z": "harvest_flow_tab_20260722",
+        "name": "Set Harvest Planting Options",
+        "server": "28f1afb.2a0725",
+        "version": 7,
+        "debugenabled": false,
+        "action": "input_select.set_options",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "input_select.harvest_planting"
+        ],
+        "labelId": [],
+        "data": "{\\\"options\\\": options}",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "input_select",
+        "service": "set_options",
+        "x": 1350,
+        "y": 100,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "harvest_debug_options",
+        "type": "debug",
+        "z": "harvest_flow_tab_20260722",
+        "name": "Harvest Planting Options",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1340,
+        "y": 160,
+        "wires": []
+    }
+]
