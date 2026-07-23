@@ -1,8 +1,8 @@
 # Harvest and Waste Tracking
 
-**Revision:** 0.1  
-**Last Updated:** 2026-07-01  
-**Status:** Outline
+**Revision:** 0.2
+**Last Updated:** 2026-07-22
+**Status:** Draft
 
 ---
 
@@ -16,44 +16,89 @@ The objective is to build a long-term production history that supports yield ana
 
 # Design Goals
 
+Harvest and waste records reference a planting assignment rather than
+independently storing season, position, crop, or variety information. This
+ensures production records remain consistent while simplifying harvest entry.
+
 The harvest tracking system is intended to:
 
 - Record every harvest event
 - Record crop losses and waste
-- Associate harvests with a growing season
-- Associate harvests with planting locations
-- Track crop varieties
+- Associate harvests with the originating planting
+- Preserve complete production history throughout the growing season
+- Support multiple harvests from a single planting
 - Analyze production trends over time
 - Support production cost calculations
-- Improve future planting decisions
 
 ---
 
 # Harvest Workflow
 
-(TODO)
+Harvest events are recorded against an existing planting assignment.
 
-Document the process for recording harvested produce.
+The operator does not manually select the season, crop, or variety during
+harvest entry because that information is already associated with the selected
+planting.
 
-Topics:
+The harvest workflow consists of:
 
-- Select season
-- Select planting location
-- Select crop variety
-- Record harvest date
-- Record harvested quantity
-- Record units
-- Optional notes
+1. Select the planted growing position.
+2. Confirm the displayed crop and variety.
+3. Record the harvest date.
+4. Record the harvested quantity.
+5. Record the measurement units.
+6. Optionally record harvest quality or operator notes.
+7. Save the harvest record.
+
+Each harvest is associated with the selected planting, allowing multiple
+harvests to be recorded throughout the life of the crop.
+
+The planting remains active until it is intentionally removed or replaced at
+the end of its production cycle.
+
+# Harvest Measurements
+
+Harvest quantity may be recorded using the measurement most appropriate for the
+crop.
+
+Examples include:
+
+- Weight
+    - grams
+    - ounces
+    - pounds
+    - kilograms
+
+- Count
+    - each
+    - peppers
+    - tomatoes
+    - cucumbers
+
+The selected unit is stored with each harvest record, allowing production
+reports to summarize harvests using the original measurement units.
 
 ---
 
 # Waste Tracking
 
-(TODO)
+Waste events record plant material or production that is removed without being
+recorded as a harvest.
 
-Document crop losses that occur before harvest.
+Waste records are associated with an existing planting assignment, preserving
+the complete production history for each crop.
 
-Examples:
+The waste workflow consists of:
+
+1. Select the planted growing position.
+2. Confirm the displayed crop and variety.
+3. Record the waste date.
+4. Select the primary waste reason.
+5. Optionally record the quantity affected.
+6. Optionally record operator notes.
+7. Save the waste record.
+
+Common waste reasons include:
 
 - Plant disease
 - Pest damage
@@ -61,25 +106,51 @@ Examples:
 - Nutrient deficiency
 - Mechanical damage
 - Poor germination
+- Storm damage
+- Animal damage
 - End-of-season removal
+- Crop replacement
+
+Waste records support long-term analysis of crop failures, environmental
+conditions, and production losses while documenting the complete lifecycle of
+each planting.
 
 ---
 
 # Harvest Measurements
 
-(TODO)
+Harvest quantity is recorded together with the measurement unit appropriate for
+the harvested crop.
 
-Describe supported measurement types.
+Supported measurement types include:
 
-Examples:
+### Weight
 
-- Weight
-- Count
-- Individual items
-- Bunches
-- Custom units
+- grams (g)
+- ounces (oz)
+- pounds (lb)
+- kilograms (kg)
 
-Future support may include automatic unit conversions for reporting.
+### Count
+
+- each
+- fruit
+- pepper
+- tomato
+- cucumber
+- head
+- pod
+
+### Bundle
+
+- bunch
+- bundle
+
+Additional measurement units may be added as new crops are introduced.
+
+Harvest records preserve the original quantity and units entered by the
+operator. Future reporting may optionally support unit conversion and
+normalization for cross-season production analysis.
 
 ---
 
@@ -102,11 +173,12 @@ Examples:
 
 # Cost Analysis
 
-(TODO)
+Cost analysis is planned for a future development phase.
 
-Long-term reporting will combine harvest records with operational costs.
+Harvest records will eventually be combined with operational data to evaluate
+production efficiency and growing costs.
 
-Potential calculations include:
+Potential reporting includes:
 
 - Cost per harvest
 - Cost per pound
@@ -115,41 +187,50 @@ Potential calculations include:
 - Water consumption
 - Seasonal operating cost
 
+Implementation of production cost reporting is intentionally deferred until
+harvest and waste tracking have been validated during an entire growing season.
+
 ---
 
 # Dashboard Integration
 
-(TODO)
+Home Assistant provides the operator interface for recording harvest and waste
+events.
 
-Planned Home Assistant workflows include:
+Planned dashboard functions include:
 
-- Record harvest
-- Record waste
-- Harvest history
-- Seasonal production summary
-- Crop performance dashboard
+- Select an active planting
+- Record a harvest
+- Record a waste event
+- Review planting history
+- Launch related maintenance workflows
+
+Detailed dashboard layout, popup forms, history browsing, and production
+summaries are documented in:
+
+- [04 – Dashboard & History Design](04-dashboard-history-design.md)
 
 ---
 
 # Database Design
 
-(TODO)
+Harvest and waste tracking uses the following database tables:
 
-Reference related database tables.
+- `hydro_harvest`
+- `hydro_waste`
+- `hydro_season`
+- `hydro_season_planting`
+- `crop_variety`
+- `hydro_position`
 
-Examples:
+Harvest and waste records reference the originating planting assignment,
+allowing season, position, crop, and variety information to be derived through
+the database relationships.
 
-- hydro_harvest
-- hydro_waste
-- hydro_season
-- hydro_season_planting
-- crop_variety
-- hydro_position
+Detailed table definitions, indexes, relationships, and business rules are
+documented in:
 
-Implementation details are documented in:
-
-- 01-database-design.md
-
+- [01 – Database Design](01-database-design.md)
 ---
 
 # Future Enhancements
@@ -189,4 +270,5 @@ Potential future capabilities include:
 
 | Date | Revision | Description |
 |------|----------|-------------|
+| 2026-07-22 | 0.2 | Completed harvest workflow, waste tracking, harvest measurements, dashboard integration, and database design. Updated the design to reference planting assignments rather than independently selecting season, position, crop, and variety. Deferred cost analysis until production data is available. |
 | 2026-07-01 | 0.1 | Initial document outline. |

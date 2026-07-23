@@ -1,9 +1,8 @@
 # Hydroponics Database Design
 
-**Revision:** 0.3
-**Last Updated:** 2026-07-01
+**Revision:** 0.4
+**Last Updated:** 2026-07-22
 **Status:** Active Reference / Partial Implementation
-
 ---
 
 # Purpose
@@ -73,27 +72,28 @@ If cloud synchronization or multi-site support is implemented in the future, UTC
 
 ## Base Tables
 
-| Table                         | Status       | Purpose                                                           |
-| ----------------------------- | ------------ | ----------------------------------------------------------------- |
-| `maintenance_log`             | ✅ Production | Primary operational event history for fill and dose cycles.       |
-| `hydro_tds_reference_reading` | ✅ Production | Handheld EC/TDS meter checks compared to installed probe voltage. |
-| `ingredients`                 | 🚧 Partial   | Master list of dry nutrient ingredients.                          |
-| `purchases`                   | 🚧 Partial   | Purchase header records.                                          |
-| `purchase_items`              | 🚧 Partial   | Purchased ingredient line items.                                  |
-| `inventory_ledger`            | 🚧 Partial   | Inventory movement history.                                       |
-| `nutrient_batches`            | 🚧 Partial   | Nutrient stock batch headers.                                     |
-| `nutrient_batch_items`        | 🚧 Partial   | Ingredients used in each nutrient batch.                          |
-| `nutrient_stock_solution`     | 🚧 Partial   | Part A / Part B stock solution containers.                        |
-| `hydro_season`                | ⏳ Planned    | Growing season records.                                           |
-| `hydro_position`              | ⏳ Planned    | Permanent plant positions such as E1–E7 and W1–W6.                |
-| `crop_variety`                | ⏳ Planned    | Crop variety master list.                                         |
-| `hydro_season_planting`       | ⏳ Planned    | Season, position, and crop variety assignments.                   |
-| `hydro_harvest`               | ⏳ Planned    | Harvest records.                                                  |
-| `hydro_waste`                 | ⏳ Planned    | Waste and crop loss records.                                      |
-| `stg_maintenance_csv`         | ❌ Legacy     | CSV import staging table.                                         |
-| `purchases_legacy`            | ❌ Legacy     | Earlier purchase table.                                           |
-| `dry_chem_purchases_legacy`   | ❌ Legacy     | Earlier dry chemical purchase table.                              |
-| `nutrient_batches_legacy`     | ❌ Legacy     | Earlier nutrient batch table.                                     |
+| Table                         | Status         | Purpose                                                                |
+| ----------------------------- | -------------- | ---------------------------------------------------------------------- |
+| `maintenance_log`             | ✅ Production  | Primary operational event history for fill and dose cycles.            |
+| `hydro_tds_reference_reading` | ✅ Production  | Handheld EC/TDS meter checks compared to installed probe voltage.      |
+| `ingredients`                 | 🚧 Partial     | Master list of dry nutrient ingredients.                               |
+| `purchases`                   | 🚧 Partial     | Purchase header records.                                               |
+| `purchase_items`              | 🚧 Partial     | Purchased ingredient line items.                                       |
+| `inventory_ledger`            | 🚧 Partial     | Inventory movement history.                                            |
+| `nutrient_batches`            | 🚧 Partial     | Nutrient stock batch headers.                                          |
+| `nutrient_batch_items`        | 🚧 Partial     | Ingredients used in each nutrient batch.                               |
+| `nutrient_stock_solution`     | 🚧 Partial     | Part A / Part B stock solution containers.                             |
+| `hydro_season`                | ✅ Implemented | Growing season records.                                                |
+| `hydro_position`              | ✅ Production  | Permanent growing positions (E1–E7 and W1–W6).                         |
+| `hydro_crop`                  | ✅ Implemented | Master list of crop types (Tomato, Pepper, Eggplant, etc.).            |
+| `crop_variety`                | ✅ Implemented | Crop variety master list linked to a crop type.                        |
+| `hydro_season_planting`       | ✅ Implemented | Assigns a crop variety to a permanent position for a growing season.   |
+| `hydro_harvest`               | ✅ Implemented | Harvest records linked to the originating planting assignment.         |
+| `hydro_waste`                 | ✅ Implemented | Waste and crop loss records linked to the originating planting.        |
+| `stg_maintenance_csv`         | ❌ Legacy      | CSV import staging table.                                              |
+| `purchases_legacy`            | ❌ Legacy      | Earlier purchase table.                                                |
+| `dry_chem_purchases_legacy`   | ❌ Legacy      | Earlier dry chemical purchase table.                                   |
+| `nutrient_batches_legacy`     | ❌ Legacy      | Earlier nutrient batch table.                                          |
 
 ## Views
 
@@ -251,7 +251,7 @@ Example:
 ```text
 Fill wasted due to broken recirculating pump hose clamp. Nutrients discharged
 onto the patio instead of remaining in the reservoir.
----
+```
 
 ---
 
@@ -514,6 +514,8 @@ in the Home Assistant patio system constants.
 | --------- | ------------------- |
 | `PRIMARY` | `stock_solution_id` |
 
+---
+
 # Season, Planting, Harvest, and Waste Tables
 
 ## `hydro_season`
@@ -548,194 +550,254 @@ in the Home Assistant patio system constants.
 
 ## `hydro_position`
 
-**Status:** ⏳ Planned  
-**Purpose:** Defines fixed planting positions in the outside hydroponics system.  
-**Written By:** Manual setup / future layout workflow.  
-**Read By:** Season planting, harvest, and waste workflows.
+**Status:** ✅ Production  
+**Purpose:** Defines the permanent physical growing positions within the hydroponics system. Position records are independent of growing seasons and remain constant over time.  
+**Written By:** Initial system configuration.  
+**Read By:** Season planting, harvest, waste, dashboards, and production reporting.
 
 ### Columns
 
 | Column | Type | Notes |
-|---|---|---|
+|--------|------|------|
 | `position_id` | int auto_increment | Primary key |
-| `system_key` | varchar(50) | Default `outside` |
-| `channel` | varchar(20) | East / West |
-| `position_code` | varchar(10) | Example `E1`, `W6` |
-| `position_number` | int | Position number within channel |
-| `flow_order` | int | Order in flow path |
-| `active` | tinyint(1) | Active flag |
-| `notes` | text | Notes |
+| `system_key` | varchar(50) | Hydroponic system identifier. Default `outside`. |
+| `channel` | varchar(20) | Growing channel (`East` or `West`) |
+| `position_code` | varchar(10) | Permanent position identifier (E1–E7, W1–W6) |
+| `position_number` | int | Position number within the channel |
+| `flow_order` | int | Order of nutrient flow through the channel |
+| `active` | tinyint(1) | Active position flag |
+| `notes` | text | Optional notes |
+
+### Relationships
+
+Referenced by:
+
+- `hydro_season_planting.position_id`
 
 ### Indexes
 
-| Index | Column |
-|---|---|
-| `PRIMARY` | `position_id` |
-| `uq_hydro_position` | `system_key`, `position_code` |
+| Index | Type | Columns |
+|--------|------|---------|
+| `PRIMARY` | Primary Key | `position_id` |
+| `uq_hydro_position` | Unique | `system_key`, `position_code` |
+
+### Business Rules
+
+- Position identifiers are permanent and never change.
+- A position may participate in many growing seasons over time.
+- Physical positions are assigned to seasons through `hydro_season_planting`.
+
+---
+
+## `hydro_crop`
+
+**Status:** ✅ Implemented  
+**Purpose:** Master list of supported crop types.  
+**Written By:** Crop management workflow.  
+**Read By:** Crop variety management, planting, harvest, waste, and production reporting.
+
+### Columns
+
+| Column | Type | Notes |
+|--------|------|------|
+| `crop_id` | int auto_increment | Primary key |
+| `crop_name` | varchar(50) | Crop type (Tomato, Pepper, Eggplant, etc.) |
+| `active` | tinyint(1) | Active crop flag |
+| `notes` | text | Optional notes |
+| `created_at` | datetime | Record creation timestamp |
+
+### Relationships
+
+Referenced by:
+
+- `crop_variety.crop_id`
+
+### Indexes
+
+| Index | Type | Columns |
+|--------|------|---------|
+| `PRIMARY` | Primary Key | `crop_id` |
+| `uq_hydro_crop_name` | Unique | `crop_name` |
 
 ---
 
 ## `crop_variety`
 
-**Status:** ⏳ Planned  
-**Purpose:** Master crop variety list.  
-**Written By:** Future crop variety setup workflow.  
-**Read By:** Season planting, harvest, and production reports.
+**Status:** ✅ Implemented  
+**Purpose:** Stores reusable crop varieties associated with a crop type.  
+**Written By:** Crop management workflow.  
+**Read By:** Season planting, harvest, waste, and production reporting.
 
 ### Columns
 
 | Column | Type | Notes |
-|---|---|---|
+|--------|------|------|
 | `variety_id` | int auto_increment | Primary key |
-| `crop_type` | varchar(50) | Example tomato, pepper |
-| `variety_name` | varchar(100) | Variety name |
-| `seed_source` | varchar(100) | Seed/source |
-| `notes` | text | Notes |
-| `active` | tinyint(1) | Active flag |
-| `created_at` | datetime | Created timestamp |
-
-### Indexes
-
-| Index | Column |
-|---|---|
-| `PRIMARY` | `variety_id` |
-| `uq_crop_variety` | `crop_type`, `variety_name` |
-
-## `hydro_season_planting`
-
-**Status:** ⏳ Planned  
-**Purpose:** Assigns a crop variety to a specific planting position for a season.  
-**Written By:** Future planting workflow.  
-**Read By:** Harvest, waste, and production reporting.
+| `crop_id` | int | References `hydro_crop` |
+| `variety_name` | varchar(100) | Variety or cultivar name |
+| `seed_source` | varchar(100) | Optional seed supplier or source |
+| `notes` | text | Optional notes |
+| `active` | tinyint(1) | Active variety flag |
+| `created_at` | datetime | Record creation timestamp |
 
 ### Relationships
 
-- `season_id` → `hydro_season`
-- `position_id` → `hydro_position`
-- `variety_id` → `crop_variety`
+References:
+
+- `hydro_crop.crop_id`
+
+Referenced by:
+
+- `hydro_season_planting.variety_id`
+
+### Indexes
+
+| Index | Type | Columns |
+|--------|------|---------|
+| `PRIMARY` | Primary Key | `variety_id` |
+| `uq_crop_variety_crop_name` | Unique | `crop_id`, `variety_name` |
+| `fk_crop_variety_crop` | Foreign Key | `crop_id` |
+
+---
+
+## `hydro_season_planting`
+
+**Status:** ✅ Implemented  
+**Purpose:** Assigns a crop variety to a permanent growing position for a specific growing season. This table forms the central relationship between seasons, positions, and crops.  
+**Written By:** Planting workflow.  
+**Read By:** Harvest, waste, dashboards, history, and production reporting.
 
 ### Columns
 
 | Column | Type | Notes |
-|---|---|---|
+|--------|------|------|
 | `planting_id` | int auto_increment | Primary key |
-| `season_id` | int | Growing season |
-| `position_id` | int | Plant position |
-| `variety_id` | int | Crop variety |
-| `plant_count` | int | Normally 1 |
-| `planted_date` | date | Date planted |
-| `removed_date` | date | Date removed |
+| `season_id` | int | References `hydro_season` |
+| `position_id` | int | References `hydro_position` |
+| `variety_id` | int | References `crop_variety`; `NULL` for empty positions |
+| `plant_count` | int | Number of plants at this position |
+| `planted_date` | date | Planting date |
+| `removed_date` | date | Removal date |
 | `status` | enum | `planned`, `planted`, `removed`, `failed`, `empty` |
-| `notes` | text | Notes |
-| `created_at` | datetime | Created timestamp |
+| `notes` | text | Optional notes |
+| `created_at` | datetime | Record creation timestamp |
+
+### Relationships
+
+References:
+
+- `hydro_season.season_id`
+- `hydro_position.position_id`
+- `crop_variety.variety_id`
+
+Referenced by:
+
+- `hydro_harvest.planting_id`
+- `hydro_waste.planting_id`
 
 ### Indexes
 
-| Index | Column |
-|---|---|
-| `PRIMARY` | `planting_id` |
-| `uq_season_position` | `season_id`, `position_id` |
-| `fk_planting_position` | `position_id` |
-| `fk_planting_variety` | `variety_id` |
+| Index | Type | Columns |
+|--------|------|---------|
+| `PRIMARY` | Primary Key | `planting_id` |
+| `uq_hydro_season_position` | Unique | `season_id`, `position_id` |
+| `fk_hydro_planting_position` | Foreign Key | `position_id` |
+| `fk_hydro_planting_variety` | Foreign Key | `variety_id` |
 
 ### Business Rules
 
-- A planting position may only be used once within a season.
-- Historical plantings are never overwritten.
+- Each physical position receives one planting assignment per growing season.
+- Empty positions are represented by `status = 'empty'`, `variety_id = NULL`, and `plant_count = 0`.
+- Harvest and waste records always reference the planting assignment rather than storing crop, variety, season, or position independently.
 
 ---
 
 ## `hydro_harvest`
 
-**Status:** ⏳ Planned  
-**Purpose:** Records harvested produce.  
-**Written By:** Future harvest workflow.  
-**Read By:** Harvest history, production reports, and cost analysis.
-
-### Relationships
-
-- `season_id` → `hydro_season`
-- `planting_id` → `hydro_season_planting`
+**Status:** ✅ Implemented  
+**Purpose:** Records harvested produce from a planting assignment. Multiple harvests may be recorded for the same planting throughout the growing season.  
+**Written By:** Harvest workflow.  
+**Read By:** Harvest history, production reporting, and future cost analysis.
 
 ### Columns
 
 | Column | Type | Notes |
-|---|---|---|
+|--------|------|------|
 | `harvest_id` | int auto_increment | Primary key |
-| `season_id` | int | Growing season |
-| `planting_id` | int | Plant harvested |
-| `harvested_at` | datetime | Harvest date/time |
+| `planting_id` | int | References `hydro_season_planting` |
+| `harvested_at` | datetime | Harvest timestamp |
 | `harvest_count` | int | Quantity harvested |
-| `harvest_unit` | varchar(20) | Default `item` |
-| `total_weight` | decimal | Total weight |
+| `harvest_unit` | varchar(20) | Count unit (default `item`) |
+| `total_weight` | decimal(10,3) | Total harvested weight |
 | `weight_unit` | enum | `lb`, `oz`, `g`, `kg` |
 | `quality` | enum | `good`, `mixed`, `poor`, `waste` |
-| `notes` | text | Notes |
-| `created_at` | datetime | Created timestamp |
+| `notes` | text | Optional notes |
+| `created_at` | datetime | Record creation timestamp |
+
+### Relationships
+
+References:
+
+- `hydro_season_planting.planting_id`
 
 ### Indexes
 
-| Index | Column |
-|---|---|
-| `PRIMARY` | `harvest_id` |
-| `fk_harvest_season` | `season_id` |
-| `fk_harvest_planting` | `planting_id` |
-| `idx_harvest_date` | `harvested_at` |
+| Index | Type | Columns |
+|--------|------|---------|
+| `PRIMARY` | Primary Key | `harvest_id` |
+| `fk_hydro_harvest_planting` | Foreign Key | `planting_id` |
+| `idx_hydro_harvest_date` | Index | `harvested_at` |
 
 ### Business Rules
 
-- Every harvest belongs to one planting.
-- Multiple harvests may exist for the same planting.
+- Every harvest belongs to one planting assignment.
+- A planting may have multiple harvest records.
+- Season, position, crop, and variety are derived through the planting assignment.
 
 ---
 
 ## `hydro_waste`
 
-**Status:** ⏳ Planned  
-**Purpose:** Records crop losses and discarded produce.  
-**Written By:** Future waste workflow.  
-**Read By:** Waste reports and production analytics.
-
-### Relationships
-
-- `season_id` → `hydro_season`
-- `planting_id` → `hydro_season_planting`
+**Status:** ✅ Implemented  
+**Purpose:** Records plant material or produce removed without being counted as harvested production.  
+**Written By:** Waste tracking workflow.  
+**Read By:** Waste reporting and production analytics.
 
 ### Columns
 
 | Column | Type | Notes |
-|---|---|---|
+|--------|------|------|
 | `waste_id` | int auto_increment | Primary key |
-| `season_id` | int | Growing season |
-| `planting_id` | int | Optional planting reference |
-| `wasted_at` | datetime | Date/time |
-| `waste_type` | enum | `fruit_loss`, `plant_loss`, `disease`, `pest`, `damage`, `other` |
-| `waste_count` | int | Quantity |
-| `waste_weight` | decimal | Weight discarded |
+| `planting_id` | int | References `hydro_season_planting` |
+| `wasted_at` | datetime | Waste timestamp |
+| `waste_type` | enum | Classified waste reason |
+| `waste_count` | int | Quantity discarded |
+| `waste_weight` | decimal(10,3) | Total discarded weight |
 | `weight_unit` | enum | `lb`, `oz`, `g`, `kg` |
-| `reason` | text | Reason for loss |
-| `notes` | text | Notes |
-| `created_at` | datetime | Created timestamp |
+| `reason` | text | Optional detailed explanation |
+| `notes` | text | Optional notes |
+| `created_at` | datetime | Record creation timestamp |
+
+### Relationships
+
+References:
+
+- `hydro_season_planting.planting_id`
 
 ### Indexes
 
-| Index | Column |
-|---|---|
-| `PRIMARY` | `waste_id` |
-| `fk_waste_season` | `season_id` |
-| `fk_waste_planting` | `planting_id` |
-| `idx_waste_date` | `wasted_at` |
+| Index | Type | Columns |
+|--------|------|---------|
+| `PRIMARY` | Primary Key | `waste_id` |
+| `fk_hydro_waste_planting` | Foreign Key | `planting_id` |
+| `idx_hydro_waste_date` | Index | `wasted_at` |
+| `idx_hydro_waste_type` | Index | `waste_type` |
 
 ### Business Rules
 
-- Waste may be associated with a planting or recorded as a general system loss.
-- Waste records should complement harvest records to support production efficiency analysis.
-
-# Views
-
-Views are used to simplify dashboard readback, reporting, and troubleshooting.
-
-Views should not be treated as source data. Source data belongs in the base tables.
+- Every waste record belongs to one planting assignment.
+- Season, position, crop, and variety are derived through the planting assignment.
+- Waste records complement harvest records when evaluating production efficiency.
 
 ---
 
@@ -808,79 +870,105 @@ The view intentionally exposes filtered voltages for operator display while raw
 analog measurements remain available in the underlying production tables for
 engineering analysis.
 
-### Design Philosophy
-
-`v_hydro_recent_activity` is the authoritative readback interface for operator
-history.
-
-Applications should query this view rather than reading directly from the
-underlying production tables whenever a chronological activity timeline is
-required.
 ---
 
-## Inventory Views
+# Views
 
-| View | Status | Source Tables | Purpose |
-|---|---|---|---|
-| `v_inventory_current` | 🚧 Partial | `ingredients`, `inventory_ledger` | Current ingredient quantity. |
-| `v_inventory_low` | 🚧 Partial | `v_inventory_current` | Low inventory warning. |
-| `v_inventory_ledger_detail` | 🚧 Partial | `inventory_ledger`, `ingredients` | Ledger detail with ingredient names. |
-| `v_ingredient_inventory` | 🚧 Partial | `ingredients`, `inventory_ledger` | Ingredient inventory summary. |
-| `v_remaining_batch_capacity` | 🚧 Partial | `v_inventory_current` | Estimated nutrient batches possible. |
+Views provide simplified readback for dashboards, reporting, and troubleshooting.
+
+Views are not source data. Permanent records belong in the underlying base
+tables.
+
+## Operator History
+
+### `v_hydro_recent_activity`
+
+**Status:** ✅ Production  
+**Purpose:** Provides the unified chronological activity feed used by the
+Hydro-History dashboard.
+
+The view combines supported operational records into one operator-facing
+timeline. Applications should use this view whenever a chronological history
+display is required rather than querying the underlying source tables
+individually.
+
+**Primary Consumers:**
+
+- Home Assistant Hydro-History dashboard
+- Node-RED history refresh workflow
+- Operator troubleshooting and event review
+
+**Important Rule:**
+
+`v_hydro_recent_activity` is the authoritative readback interface for the
+operator activity timeline. The underlying base tables remain the authoritative
+source records.
 
 ---
 
-## Purchase Views
+## Inventory and Purchasing Views
 
 | View | Status | Purpose |
 |---|---|---|
-| `v_purchase_costs_ytd` | 🚧 Partial | Year-to-date purchase cost summary. |
-| `v_unit_cost_per_item_ytd` | 🚧 Partial | Unit cost calculations. |
-| `dry_chem_purchases` | ❌ Legacy | Old dry chemical purchase view. |
+| `v_inventory_current` | 🚧 Partial | Calculates the current quantity of each dry ingredient from inventory ledger activity. |
+| `v_inventory_low` | 🚧 Partial | Identifies ingredients below their configured inventory threshold. |
+| `v_inventory_ledger_detail` | 🚧 Partial | Provides inventory ledger entries with ingredient names and related detail. |
+| `v_ingredient_inventory` | 🚧 Partial | Provides an ingredient-level inventory summary. |
+| `v_remaining_batch_capacity` | 🚧 Partial | Estimates the number of nutrient batches that can be produced from current inventory. |
+| `v_purchase_costs_ytd` | 🚧 Partial | Summarizes purchase costs for the current year. |
+| `v_unit_cost_per_item_ytd` | 🚧 Partial | Calculates year-to-date unit costs from purchase records. |
 
 ---
 
 ## Nutrient Batch Views
 
-| View | Status | Source Tables | Purpose |
-|---|---|---|---|
-| `v_batch_recipe` | 🚧 Partial | `nutrient_batches`, `nutrient_batch_items`, `ingredients` | Batch recipe detail. |
-| `v_nutrient_batches_detail` | 🚧 Partial | `nutrient_batches`, `nutrient_batch_items`, `ingredients` | Nutrient batch detail. |
+| View | Status | Purpose |
+|---|---|---|
+| `v_batch_recipe` | 🚧 Partial | Provides the ingredient recipe for each nutrient batch. |
+| `v_nutrient_batches_detail` | 🚧 Partial | Provides detailed nutrient batch records with ingredient information. |
 
 ---
 
-## Production Views
+## Production Reporting Views
 
 | View | Status | Purpose |
 |---|---|---|
-| `v_harvests` | ⏳ Planned / Legacy Dependent | Harvest reporting. |
-| `v_harvest_summary_ytd` | ⏳ Planned / Legacy Dependent | Year-to-date harvest summary. |
+| `v_harvests` | ⏳ Planned | Provides harvest records with derived season, position, crop, and variety information. |
+| `v_harvest_summary_ytd` | ⏳ Planned | Summarizes current-year harvest production by crop and variety. |
 
----
+The production views must be rebuilt against the normalized relationship:
 
-## Legacy Views
+```text
+hydro_crop
+    → crop_variety
+        → hydro_season_planting
+            → hydro_harvest
+```
 
-| View | Status | Notes |
-|---|---|---|
-| `hydroponics_outside` | ❌ Broken Legacy | Old view over maintenance data. Do not use for new dashboards or workflows. |
+# Workflow Ownership Map
 
-# Workflow Map
+This section identifies the subsystem responsible for initiating and processing
+each database-writing workflow.
 
-This section identifies which subsystem owns each workflow and which database objects it writes.
+The database is the permanent system of record. Home Assistant provides the
+operator interface, ESPHome performs physical equipment control, and Node-RED
+owns workflow validation, database writes, history refresh, and completion
+notifications unless otherwise documented.
 
-| Workflow                       | Started From                    | Processed By                              | Database Objects                                                                          | Status       |
-| ------------------------------ | ------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------- | ------------ |
-| Fill / Dose Cycle Logging      | ESPHome switch state changes    | Node-RED `Hydroponics_Cycle_Manager.json` | `maintenance_log`                                                                         | ✅ Production |
-| EC / TDS Reference Measurement | Home Assistant Measure EC popup | Node-RED `TDS_Reference.json`             | `hydro_tds_reference_reading`                                                             | ✅ Production |
-| Equipment Event Entry          | Home Assistant dashboard        | Future Node-RED workflow                  | `maintenance_log`                                                                         | ⏳ Planned    |
-| Dry Ingredient Purchase        | Home Assistant dashboard        | Future Node-RED workflow                  | `purchases`, `purchase_items`, `inventory_ledger`                                         | ⏳ Planned    |
-| Inventory Adjustment           | Home Assistant dashboard        | Future Node-RED workflow                  | `inventory_ledger`                                                                        | ⏳ Planned    |
-| Nutrient Batch Building        | Home Assistant dashboard        | Future Node-RED workflow                  | `nutrient_batches`, `nutrient_batch_items`, `inventory_ledger`, `nutrient_stock_solution` | ⏳ Planned    |
-| Stock Solution Top-Off         | Home Assistant dashboard        | Future Node-RED workflow                  | `nutrient_stock_solution`                                                                 | ⏳ Planned    |
-| Season Setup                   | Home Assistant dashboard        | Future Node-RED workflow                  | `hydro_season`                                                                            | ⏳ Planned    |
-| Planting Assignment            | Home Assistant dashboard        | Future Node-RED workflow                  | `hydro_season_planting`                                                                   | ⏳ Planned    |
-| Harvest Entry                  | Home Assistant dashboard        | Future Node-RED workflow                  | `hydro_harvest`                                                                           | ⏳ Planned    |
-| Waste Entry                    | Home Assistant dashboard        | Future Node-RED workflow                  | `hydro_waste`                                                                             | ⏳ Planned    |
+| Workflow | Initiated By | Processing Owner | Database Objects | Status |
+|---|---|---|---|---|
+| Fill / Dose Cycle Logging | ESPHome equipment state changes | Node-RED `Hydroponics_Cycle_Manager.json` | `maintenance_log` | ✅ Production |
+| EC / TDS Reference Measurement | Home Assistant Measure EC form | Node-RED `TDS_Reference.json` | `hydro_tds_reference_reading` | ✅ Production |
+| Equipment Event Entry | Home Assistant dashboard | Node-RED | `maintenance_log` | ⏳ Planned |
+| Dry Ingredient Purchase | Home Assistant dashboard | Node-RED | `purchases`, `purchase_items`, `inventory_ledger` | ⏳ Planned |
+| Inventory Adjustment | Home Assistant dashboard | Node-RED | `inventory_ledger` | ⏳ Planned |
+| Nutrient Batch Building | Home Assistant dashboard | Node-RED | `nutrient_batches`, `nutrient_batch_items`, `inventory_ledger`, `nutrient_stock_solution` | ⏳ Planned |
+| Stock Solution Top-Off | Home Assistant dashboard | Node-RED | `nutrient_stock_solution` | ⏳ Planned |
+| Crop Management | Home Assistant dashboard | Node-RED | `hydro_crop`, `crop_variety` | ⏳ Planned |
+| Season Setup | Home Assistant dashboard | Node-RED | `hydro_season` | ⏳ Planned |
+| Planting Assignment | Home Assistant dashboard | Node-RED | `hydro_season_planting` | ⏳ Planned |
+| Harvest Entry | Home Assistant dashboard | Node-RED | `hydro_harvest` | ⏳ Planned |
+| Waste Entry | Home Assistant dashboard | Node-RED | `hydro_waste` | ⏳ Planned |                                                                           | ⏳ Planned    |
 
 ---
 
@@ -907,11 +995,12 @@ Current priorities are:
 
 # Revision History
 
-| Date       | Revision | Description                                                                                                                                                                                                                                                                      |
-| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Date | Revision | Description |
+|------|----------|-------------|
+| 2026-07-22 | 0.4 | Refactored the engineering measurement model to support dual analog probe channels (A0/A1). Updated `maintenance_log`, `hydro_tds_reference_reading`, and `v_hydro_recent_activity` documentation to replace legacy single-probe terminology with raw and filtered voltage measurements. Expanded view documentation, clarified engineering data ownership, and documented the production readback architecture. |
 | 2026-07-01 | 0.3 | Added `water_temp_f` and `operator_note` to `hydro_tds_reference_reading`. Updated Hydro-History design to support annotations on EC reference records and unified history browsing across multiple activity sources. |
-| 2026-07-01 | 0.3      | Added Hydro-History browser support, documented operator notes, clarified the project timestamp standard, updated `v_hydro_recent_activity` to use local event time for dashboard readback, and corrected timestamp documentation for production workflows. |
-| 2026-06-28 | 0.2      | Reorganized the document into a database reference. Added object inventory, table documentation, views, workflow ownership, and development priorities. Updated to reflect `maintenance_log` as the production event table after retirement of `hydroponics_outside_events`. |
+| 2026-07-01 | 0.3 | Added Hydro-History browser support, documented operator notes, clarified the project timestamp standard, updated `v_hydro_recent_activity` to use local event time for dashboard readback, and corrected timestamp documentation for production workflows. |
+| 2026-06-28 | 0.2 | Reorganized the document into a database reference. Added object inventory, table documentation, views, workflow ownership, and development priorities. Updated to reflect `maintenance_log` as the production event table after retirement of `hydroponics_outside_events`. |
 
 ---
 
