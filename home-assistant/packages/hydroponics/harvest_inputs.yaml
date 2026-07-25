@@ -5,33 +5,40 @@
 # Author: Greg Liebig
 #
 # Purpose:
-#   Provides Home Assistant helper entities for future harvest logging
-#   workflows.
+#   Provides Home Assistant helper entities for the production harvest-entry
+#   workflow.
 #
 # Responsibilities:
-#   • Harvest location helper
-#   • Harvest crop helper
-#   • Harvest variety picker
-#   • Harvest quantity helper
-#   • Harvest weight helper
-#   • Harvest note helper
+#   • Active planting selection
+#   • Optional harvest count entry
+#   • Optional harvest weight entry
+#   • Optional harvest note entry
 #   • Harvest workflow trigger
+#   • Existing harvest-record selection
+#   • Separate harvest-edit form state
+#   • Harvest edit load, save, and cancel triggers
 #
 # Does NOT Contain:
 #   • Harvest database writes
-#   • Crop or variety management
-#   • Season management
-#   • Planting position selection
+#   • Crop, variety, season, or planting management
 #   • SQL sensors
 #   • Node-RED workflow logic
 #   • Automations
 #   • Scripts
 #
-# Notes:
-#   This package currently provides placeholder helper entities only.
-#   Harvest locations, crops, varieties, and planting positions will
-#   eventually be populated from the production season/planting database
-#   rather than hard-coded lists.
+# Workflow Rules:
+#   • The planting selector is populated from v_hydro_current_planting.
+#   • Crop, variety, position, and season are derived from planting_id.
+#   • Harvest count and harvest weight are independently optional.
+#   • Node-RED must reject a submission when both count and weight are zero.
+#   • A harvest may be recorded by count first and updated with weight later.
+#   • New-harvest and edit-harvest forms use separate helpers.
+#   • Loading an existing record must not overwrite an unfinished new harvest.
+#   • Harvest count and harvest weight are independently optional.
+#   • Node-RED must reject a submission when both count and weight are zero.
+#   • The new-harvest weight unit retains the operator's last-used selection.
+#   • Editing a record loads its stored weight unit into the edit form.
+#   • All harvest date and time values use local system time.
 #
 # Related Files:
 #   • docs/02-season-and-layout.md
@@ -39,6 +46,16 @@
 #   • docs/01-database-design.md
 #
 # Revision History
+#
+# 2026-07-23  GAL
+#   Activated the database-driven harvest planting selector.
+#   Node-RED now populates occupied planting options from
+#   v_hydro_current_planting and retains the option-to-planting_id map.
+#
+# 2026-07-22  GAL
+#   Replaced separate location, crop, and variety placeholders with one
+#   database-driven active planting selector.
+#   Documented optional count/weight behavior and Node-RED validation.
 #
 # 2026-07-01  GAL
 #   Standardized package header and section layout.
@@ -52,76 +69,196 @@
 #------------------------------------------------------------------------------
 
 input_select:
-  # Production system or growing area.
-  # Future versions will be populated from the database.
-  harvest_location:
-    name: Harvest Location
+  # Active planting assignment selected for a new harvest event.
+  #
+  # Node-RED populates the available options from v_hydro_current_planting.
+  # The workflow resolves the displayed option to planting_id.
+  harvest_planting:
+    name: Harvest Planting
     options:
-      - patio
-    icon: mdi:map-marker
-
-  # Crop type.
-  # Future versions will be populated from the active season.
-  harvest_crop:
-    name: Crop
-    options:
-      - "(select crop)"
+      - "(select planting)"
     icon: mdi:sprout
 
-  # Crop variety.
-  # Populated dynamically after a crop is selected.
-  harvest_variety_picker:
-    name: Variety
+  # Unit used for the current new-harvest weight entry.
+  #
+  # Stored directly in hydro_harvest.weight_unit.
+  # This selector intentionally retains the operator's last-used unit.
+  harvest_weight_unit:
+    name: Harvest Weight Unit
     options:
-      - "(select variety)"
-    icon: mdi:tag
+      - g
+      - kg
+      - oz
+      - lb
+    initial: g
+    icon: mdi:scale-balance
+
+  # Existing harvest record selected for editing.
+  #
+  # Node-RED populates this list from hydro_harvest and maintains the
+  # displayed-option-to-harvest_id map.
+  harvest_edit_record:
+    name: Harvest Record
+    options:
+      - "(select harvest)"
+    icon: mdi:database-search
+
+  # Planting assignment associated with the harvest being edited.
+  #
+  # Node-RED populates the available options using the same planting source
+  # used by the new-harvest workflow.
+  harvest_edit_planting:
+    name: Edit Harvest Planting
+    options:
+      - "(select planting)"
+    icon: mdi:sprout
+
+  # Unit associated with the weight of the harvest record being edited.
+  #
+  # This value is loaded from hydro_harvest.weight_unit and saved exactly as
+  # selected by the operator.
+  harvest_edit_weight_unit:
+    name: Edit Harvest Weight Unit
+    options:
+      - g
+      - kg
+      - oz
+      - lb
+    initial: g
+    icon: mdi:scale-balance
+
+  # Quality classification associated with the harvest record being edited.
+  #
+  # Values must match the hydro_harvest.quality enum.
+  harvest_edit_quality:
+    name: Edit Harvest Quality
+    options:
+      - good
+      - mixed
+      - poor
+      - waste
+    initial: good
+    icon: mdi:check-decagram
 
 #------------------------------------------------------------------------------
 # Input Text Helpers
 #------------------------------------------------------------------------------
 
 input_text:
-  # Optional note recorded with the harvest entry.
+  # Optional operator note stored with a new harvest record.
   harvest_note:
     name: Harvest Note
     max: 255
     icon: mdi:note-text
+
+  # Optional operator note loaded from and written back to an existing
+  # hydro_harvest record.
+  harvest_edit_note:
+    name: Edit Harvest Note
+    max: 255
+    icon: mdi:note-edit
 
 #------------------------------------------------------------------------------
 # Input Number Helpers
 #------------------------------------------------------------------------------
 
 input_number:
-  # Count of harvested items, when count-based harvest tracking applies.
+  # Optional count of harvested produce for a new harvest.
+  #
+  # A value of zero means that count was not entered.
   harvest_count:
     name: Harvest Count
     min: 0
     max: 500
     step: 1
+    mode: box
     icon: mdi:counter
 
-  # Harvest weight in grams, when weight-based tracking applies.
-  harvest_weight_g:
+  # Optional total harvest weight in the unit selected by the operator.
+  #
+  # A value of zero means that weight was not entered.
+  harvest_weight:
     name: Harvest Weight
     min: 0
-    max: 20000
-    step: 1
-    unit_of_measurement: "g"
+    max: 500
+    step: 0.1
+    mode: box
     icon: mdi:scale
+
+  # Database identifier of the harvest currently loaded for editing.
+  #
+  # Node-RED owns this value. It should not normally be displayed on the
+  # dashboard.
+  harvest_edit_id:
+    name: Harvest Edit ID
+    min: 0
+    max: 2147483647
+    step: 1
+    mode: box
+    icon: mdi:identifier
+
+  # Optional count loaded from the harvest record being edited.
+  harvest_edit_count:
+    name: Edit Harvest Count
+    min: 0
+    max: 500
+    step: 1
+    mode: box
+    icon: mdi:counter
+
+  # Optional weight loaded from the harvest record being edited.
+  harvest_edit_weight:
+    name: Edit Harvest Weight
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+    icon: mdi:scale
+
+#------------------------------------------------------------------------------
+# Input Date/Time Helpers
+#------------------------------------------------------------------------------
+
+input_datetime:
+  # Local harvest timestamp loaded from hydro_harvest.harvested_at.
+  #
+  # The operator may correct the original harvest date and time before saving.
+  harvest_edit_datetime:
+    name: Edit Harvest Date and Time
+    has_date: true
+    has_time: true
+    icon: mdi:calendar-clock
 
 #------------------------------------------------------------------------------
 # Input Button Helpers
 #------------------------------------------------------------------------------
 
 input_button:
-  # Future Node-RED trigger for harvest logging.
+  # Triggers the Node-RED validation and INSERT workflow for a new harvest.
   log_harvest_to_db:
     name: Log Harvest
     icon: mdi:database-plus
 
+  # Requests that Node-RED load the selected hydro_harvest record into the
+  # separate edit helpers.
+  load_harvest_for_edit:
+    name: Load Selected Harvest
+    icon: mdi:database-arrow-down
+
+  # Triggers validation and UPDATE of the currently loaded harvest record.
+  update_harvest_record:
+    name: Save Harvest Changes
+    icon: mdi:content-save-edit
+
+  # Clears the edit helpers without changing the database record.
+  cancel_harvest_edit:
+    name: Cancel Harvest Edit
+    icon: mdi:cancel
+
 #------------------------------------------------------------------------------
 # SQL Sensors
 #------------------------------------------------------------------------------
-# No SQL sensors are currently defined in this package.
-# Harvest database reads should be added only after the harvest workflow and
-# season/planting model are finalized.
+# No SQL sensors are defined in this package.
+#
+# Node-RED owns active-planting retrieval, helper option population, harvest
+# validation, database inserts, later weight updates, and operator feedback.
