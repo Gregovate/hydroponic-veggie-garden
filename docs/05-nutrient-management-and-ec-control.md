@@ -227,38 +227,72 @@ Estimated Tank EC is therefore considered an engineering estimate rather than a 
 
 ---
 
-# EC Measurement Strategy
+## Handheld Engineering Reference
 
-The outdoor hydroponics system uses multiple independent measurement sources to monitor nutrient concentration. Each source serves a specific purpose within the overall measurement strategy.
+A Bluelab Truncheon EC meter is used as the engineering reference instrument
+during calibration and validation.
 
-No single measurement is assumed to be the absolute truth. Instead, measurements are compared and evaluated together to improve confidence in system performance and to identify sensor drift or abnormal operating conditions.
+No measurement system is perfect.
 
-## Production Process Sensor
+The handheld EC meter serves as the engineering reference standard during
+calibration, while the permanently installed analog probes provide continuous
+process measurements between handheld reference readings.
 
-The KEYESTUDIO analog TDS sensor is the production process measurement used by the automatic maintenance dosing system.
+Comparing the two measurement systems improves confidence in nutrient control,
+helps identify sensor drift, and supports ongoing refinement of the EC
+estimation model.
 
-Its primary purpose is to detect relative changes in nutrient concentration rather than provide a laboratory-grade EC measurement.
+The Truncheon displays EC using illuminated LEDs at **0.2 EC increments**
+rather than a continuous numeric display. To preserve additional engineering
+resolution, reference measurements are recorded using the following convention:
 
-The production sensor remains unchanged while additional measurement methods are validated.
+- **Even-tenth values** (1.8, 2.0, 2.2, etc.) indicate the Truncheon displayed a
+  stable EC value.
 
-## Validation Sensor
+- **Odd-tenth values** (1.9, 2.1, 2.3, etc.) indicate the Truncheon was
+  alternating between the adjacent even EC values and the midpoint was recorded
+  by the operator.
 
-The DFRobot Gravity analog TDS sensor operates in parallel with the production sensor.
+This convention preserves additional information without requiring a
+higher-resolution laboratory instrument and provides a consistent engineering
+reference for calibration and long-term sensor evaluation.
 
-It is used to:
+The handheld meter is used periodically to validate the permanently installed
+analog probes. Between handheld reference measurements, the fixed analog probes
+continuously monitor changes in nutrient concentration resulting from plant
+uptake, evaporation, rainfall, nutrient additions, and water additions.
+
+## Fixed Analog Process Sensors
+
+The outdoor hydroponics controller continuously monitors nutrient solution using
+two permanently installed analog conductivity sensors operating in parallel.
+
+Current channel assignments are:
+
+| Channel | Sensor |
+|---------|--------|
+| **A0** | KEYESTUDIO analog conductivity sensor |
+| **A1** | DFRobot Gravity analog conductivity sensor |
+
+Both sensors continuously measure changes in nutrient concentration under
+identical operating conditions. Operating two independent measurement channels
+allows long-term comparison of sensor behavior while minimizing the influence of
+changing reservoir conditions.
+
+The dual-sensor architecture is used to:
 
 - Compare long-term stability.
 - Detect sensor drift.
-- Evaluate installation effects.
-- Confirm repeatability under identical operating conditions.
+- Evaluate sensor repeatability.
+- Compare response to dilution and nutrient additions.
+- Support development and validation of future EC estimation models.
 
-The validation sensor does not participate in automatic nutrient dosing while the measurement system is under development.
+At present, the automatic maintenance dosing algorithm uses the production
+measurement channel while the second channel continues to accumulate engineering
+data for long-term evaluation.
 
-## Handheld EC Reference
-
-The handheld EC meter remains the production reference instrument.
-
-Periodic handheld measurements provide an independent verification of nutrient concentration and are used to evaluate the performance of the installed analog sensors.
+Both channels are recorded with every handheld EC reference measurement to
+provide synchronized calibration data for ongoing model development.
 
 ## Estimated Tank EC
 

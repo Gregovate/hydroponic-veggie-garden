@@ -279,6 +279,35 @@ Each record captures a synchronized snapshot of:
 These records are used to evaluate probe performance, develop EC estimation
 models, and validate future automatic dosing algorithms.
 
+### Handheld EC Recording Convention
+
+The handheld reference instrument is a Bluelab Truncheon conductivity meter.
+
+The Truncheon displays EC in discrete **0.2 EC increments** using illuminated
+LEDs rather than a continuous numeric display.
+
+To preserve additional resolution during engineering calibration:
+
+- **Even-tenth values** (1.8, 2.0, 2.2, etc.) indicate a stable Truncheon LED
+  at that EC value.
+
+- **Odd-tenth values** (1.9, 2.1, 2.3, etc.) indicate the Truncheon was
+  alternating between the adjacent even EC values and the midpoint was recorded
+  by the operator.
+
+Examples:
+
+| Stored Value | Truncheon Indication |
+|--------------|----------------------|
+| 1.8 | Stable at 1.8 EC |
+| 1.9 | Alternating between 1.8 and 2.0 EC |
+| 2.0 | Stable at 2.0 EC |
+| 2.1 | Alternating between 2.0 and 2.2 EC |
+
+This convention preserves additional engineering information without requiring
+an additional database field and should be considered when evaluating EC
+calibration data.
+
 ### Columns
 
 | Column | Type | Notes |
@@ -290,7 +319,7 @@ models, and validate future automatic dosing algorithms.
 | `a0_filtered_v` | decimal(6,3) | A0 filtered voltage |
 | `a1_raw_v` | decimal(6,3) | A1 raw voltage |
 | `a1_filtered_v` | decimal(6,3) | A1 filtered voltage |
-| `meter_value` | decimal(8,2) | Handheld EC meter reading |
+| `meter_value` | decimal(8,2) | decimal(8,2) | Handheld EC reference. Even-tenth values indicate a stable Truncheon reading; odd-tenth values indicate midpoint interpolation between alternating adjacent LEDs. |
 | `meter_units` | varchar(20) | Usually `EC` |
 | `tank_gallons` | decimal(8,2) | Tank volume at measurement |
 | `water_temp_f` | decimal(6,2) | Water temperature |
