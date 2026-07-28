@@ -10,9 +10,13 @@ Status: Draft
 
 This document describes the nutrient management strategy used by the hydroponic vegetable garden.
 
-It documents how nutrient concentration is measured, maintained, validated, and recorded while defining the engineering philosophy behind automatic nutrient dosing and long-term EC control.
+It documents how nutrient concentration is measured, maintained, validated, and recorded while defining the engineering philosophy behind automatic nutrient dosing, long-term EC control, and controller operation.
 
-Unlike the stock solution mixing procedure, this document focuses on **system operation** rather than chemical preparation.
+This document focuses on **maintaining nutrient concentration within the hydroponic reservoir**.
+
+Preparation of nutrient stock solutions, inventory management, purchasing, batch preparation, and inventory tracking are documented separately in **07 – Nutrient Inventory Management**.
+
+Unlike the nutrient stock solution mixing procedure, this document focuses on **system operation** rather than chemical preparation.
 
 ---
 
@@ -30,10 +34,12 @@ The nutrient management system is intended to:
 - Support long-term calibration and evaluation of installed conductivity sensors.
 - Separate raw conductivity measurement from calculated EC estimation.
 - Build a historical database for long-term engineering analysis and future controller improvements.
-- Track estimated nutrient inventory in both production and backup containers.
-- Automatically account for nutrient transferred between backup and production containers.
-- Support proactive nutrient batch preparation and chemical purchasing.
 - Preserve lifetime nutrient usage without resetting cumulative dosing totals.
+- Provide reliable controller state information for operator awareness.
+- Support future improvements to automatic nutrient dosing algorithms.
+
+**Inventory management, nutrient batch preparation, and chemical purchasing are documented separately in
+[07 – Nutrient Inventory Management](07-nutrient-inventory-management.md).**
 
 ---
 
