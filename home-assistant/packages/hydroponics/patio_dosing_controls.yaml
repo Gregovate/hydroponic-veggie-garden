@@ -209,41 +209,75 @@ template:
             {{ [ec, 0] | max | round(2) }}
           {% endif %}
 
+      # ─────────────────────────────────────────────────────────────
+      # Connected Production Container Inventory
+      #
+      # GAL 2026-07-27
+      #
+      # Purpose:
+      # - Calculates nutrient remaining in the pump-connected production
+      #   containers without resetting cumulative seasonal dose totals.
+      #
+      # Formula:
+      #   Remaining =
+      #     production start amount
+      #     - (current cumulative total - refill baseline)
+      #
+      # Important:
+      # - outside_total_dose_*_ml remains cumulative and must never be reset
+      #   during the growing season.
+      # ─────────────────────────────────────────────────────────────
       - name: "Outside Remaining Nutrient A (mL)"
         unique_id: outside_remaining_nutrient_a_ml
         unit_of_measurement: "mL"
         icon: mdi:flask
         state: >
-          {% set start = states('input_number.last_batch_start_level_a') | float(0) %}
-          {% set used  = states('input_number.outside_total_dose_a_ml') | float(0) %}
-          {{ [start - used, 0] | max | round(1) }}
+          {% set start =
+              states('input_number.last_batch_start_level_a') | float(0) %}
+          {% set cumulative =
+              states('input_number.outside_total_dose_a_ml') | float(0) %}
+          {% set baseline =
+              states('input_number.production_refill_baseline_a_ml') | float(0) %}
+          {% set used_since_refill = [cumulative - baseline, 0] | max %}
+          {{ [start - used_since_refill, 0] | max | round(1) }}
 
       - name: "Outside Remaining Nutrient B (mL)"
         unique_id: outside_remaining_nutrient_b_ml
         unit_of_measurement: "mL"
         icon: mdi:flask
         state: >
-          {% set start = states('input_number.last_batch_start_level_b') | float(0) %}
-          {% set used  = states('input_number.outside_total_dose_b_ml') | float(0) %}
-          {{ [start - used, 0] | max | round(1) }}
+          {% set start =
+              states('input_number.last_batch_start_level_b') | float(0) %}
+          {% set cumulative =
+              states('input_number.outside_total_dose_b_ml') | float(0) %}
+          {% set baseline =
+              states('input_number.production_refill_baseline_b_ml') | float(0) %}
+          {% set used_since_refill = [cumulative - baseline, 0] | max %}
+          {{ [start - used_since_refill, 0] | max | round(1) }}
 
       - name: "Outside Remaining Nutrient A (%)"
         unique_id: outside_remaining_nutrient_a_pct
         unit_of_measurement: "%"
         icon: mdi:percent
         state: >
-          {% set start = states('input_number.last_batch_start_level_a') | float(0) %}
-          {% set rem   = states('sensor.outside_remaining_nutrient_a_ml') | float(0) %}
-          {{ (100 * rem / start) | round(1) if start > 0 else 0 }}
+          {% set capacity =
+              states('input_number.nutrient_a_capacity') | float(0) %}
+          {% set remaining =
+              states('sensor.outside_remaining_nutrient_a_ml') | float(0) %}
+          {{ (100 * remaining / capacity) | round(1)
+             if capacity > 0 else 0 }}
 
       - name: "Outside Remaining Nutrient B (%)"
         unique_id: outside_remaining_nutrient_b_pct
         unit_of_measurement: "%"
         icon: mdi:percent
         state: >
-          {% set start = states('input_number.last_batch_start_level_b') | float(0) %}
-          {% set rem   = states('sensor.outside_remaining_nutrient_b_ml') | float(0) %}
-          {{ (100 * rem / start) | round(1) if start > 0 else 0 }}
+          {% set capacity =
+              states('input_number.nutrient_b_capacity') | float(0) %}
+          {% set remaining =
+              states('sensor.outside_remaining_nutrient_b_ml') | float(0) %}
+          {{ (100 * remaining / capacity) | round(1)
+             if capacity > 0 else 0 }}
 
       # 📊 Suggested Total Dose (based on current EC/TDS gap) — informational only
       - name: "Suggested Total Dose (mL)"
@@ -847,14 +881,58 @@ input_number:
     step: 0.1
     mode: box
 
-# Buttons to reset Total Dosed amount when a full bottle is installed
+  # ─────────────────────────────────────────────────────────────
+  # Production Container Refill Levels
+  #
+  # GAL 2026-07-27
+  #
+  # Purpose:
+  # - Holds the operator-confirmed nutrient amount present immediately
+  #   after refilling each pump-connected production container.
+  # - Used by the Refill Production Part A/B UI automations.
+  #
+  # Important:
+  # - These are staging values for a refill event.
+  # - They do not represent cumulative nutrient consumption.
+  # - Refill automations must preserve:
+  #     input_number.outside_total_dose_a_ml
+  #     input_number.outside_total_dose_b_ml
+  # ─────────────────────────────────────────────────────────────
+  production_refill_level_a_ml:
+    name: Production Part A Level After Refill
+    icon: mdi:bottle-tonic-plus-outline
+    min: 0
+    max: 3780
+    step: 1
+    unit_of_measurement: "mL"
+    mode: box
+
+  production_refill_level_b_ml:
+    name: Production Part B Level After Refill
+    icon: mdi:bottle-tonic-plus-outline
+    min: 0
+    max: 3780
+    step: 1
+    unit_of_measurement: "mL"
+    mode: box
+
+#--------------------------------------------------------------------------
+# Production Container Refill
+#
+# Used after refilling the pump-connected production nutrient containers.
+#
+# Pressing either button records a new production-container inventory
+# baseline while preserving cumulative season-to-date nutrient
+# consumption totals.
+#--------------------------------------------------------------------------
 input_button:
-  reset_outside_total_dose_a:
-    name: Reset A
-    icon: mdi:restart
-  reset_outside_total_dose_b:
-    name: Reset B
-    icon: mdi:restart
+  refill_production_part_a:
+    name: Refill Production Part A
+    icon: mdi:bottle-tonic-plus-outline
+
+  refill_production_part_b:
+    name: Refill Production Part B
+    icon: mdi:bottle-tonic-plus-outline
 
   # ─────────────────────────────────────────────────────────────
   # TDS Reference Capture

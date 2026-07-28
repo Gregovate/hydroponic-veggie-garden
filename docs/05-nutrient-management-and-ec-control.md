@@ -30,6 +30,10 @@ The nutrient management system is intended to:
 - Support long-term calibration and evaluation of installed conductivity sensors.
 - Separate raw conductivity measurement from calculated EC estimation.
 - Build a historical database for long-term engineering analysis and future controller improvements.
+- Track estimated nutrient inventory in both production and backup containers.
+- Automatically account for nutrient transferred between backup and production containers.
+- Support proactive nutrient batch preparation and chemical purchasing.
+- Preserve lifetime nutrient usage without resetting cumulative dosing totals.
 
 ---
 
@@ -104,6 +108,94 @@ nutrient additions using the configured nutrient ratio and injects both parts
 without operator intervention.
 
 This provides repeatable nutrient replacement after every fill event.
+
+---
+
+# Nutrient Inventory Management
+
+## Design Philosophy
+
+The nutrient management system maintains an estimated inventory of nutrient
+solution at two levels:
+
+- Production nutrient containers connected directly to the dosing pumps.
+- Backup nutrient containers used to replenish the production containers.
+
+The objective is to maintain sufficient inventory accuracy for normal operation,
+batch planning, and chemical purchasing. Laboratory precision is not required.
+Small estimation errors are acceptable and may be corrected periodically through
+manual inventory adjustment.
+
+## Production Inventory
+
+The controller maintains an estimated inventory for each production nutrient
+container.
+
+Production inventory decreases automatically whenever the nutrient dosing pumps
+operate.
+
+Production inventory increases only when nutrient is transferred from the
+corresponding backup container.
+
+## Backup Inventory
+
+The controller maintains an estimated inventory for each backup nutrient
+container.
+
+Backup inventory increases only when a new nutrient batch is prepared.
+
+Backup inventory decreases whenever nutrient is transferred into a production
+container.
+
+To preserve recipe consistency, new nutrient batches are prepared only after the
+corresponding backup container has been emptied. Existing nutrient is never
+mixed with a newly prepared batch.
+
+## Production Refill Workflow
+
+The operator's goal is to refill each production container to its nominal full
+capacity of **3780 mL (1 US gallon)** whenever sufficient nutrient exists in the
+backup container.
+
+The controller determines:
+
+- Current production inventory.
+- Current backup inventory.
+- Quantity required to refill the production container.
+
+If sufficient nutrient exists in the backup container, the production container
+is refilled to full capacity.
+
+If insufficient nutrient remains, all remaining nutrient is transferred from the
+backup container into the production container. The backup inventory then
+becomes zero.
+
+The refill workflow automatically updates:
+
+- Production inventory.
+- Backup inventory.
+- Production refill baseline.
+- Maintenance history.
+
+Cumulative nutrient usage is never reset during this process.
+
+## Batch Preparation
+
+Preparing a new nutrient batch replenishes only the corresponding backup
+container.
+
+Batch preparation history, formulation information, and cost records remain
+independent of operational inventory tracking.
+
+## Manual Inventory Adjustment
+
+Estimated inventory is considered sufficiently accurate for normal operation.
+
+If desired, the operator may periodically correct either production or backup
+inventory using container graduations, measured volume, or container weight.
+
+Manual adjustments update the estimated inventory without affecting cumulative
+nutrient usage history.
 
 ## Maintenance Nutrient Control
 

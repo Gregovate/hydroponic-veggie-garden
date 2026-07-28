@@ -113,6 +113,76 @@ input_number:
     step: 10
     unit_of_measurement: "mL"
 
+  #--------------------------------------------------------------------------
+  # Production Container Consumption Baselines
+  #
+  # GAL 2026-07-27
+  #
+  # Purpose:
+  # - Records the cumulative pump-dose total at the moment the connected
+  #   production container is refilled.
+  # - Allows production inventory to restart without resetting or destroying
+  #   season-to-date cumulative nutrient consumption.
+  #
+  # Calculation:
+  #   Current production-container usage =
+  #     cumulative dose total - refill baseline
+  #--------------------------------------------------------------------------
+  production_refill_baseline_a_ml:
+    name: Production Refill Baseline A
+    icon: mdi:counter
+    min: 0
+    max: 100000
+    step: 0.1
+    unit_of_measurement: "mL"
+    mode: box
+
+  production_refill_baseline_b_ml:
+    name: Production Refill Baseline B
+    icon: mdi:counter
+    min: 0
+    max: 100000
+    step: 0.1
+    unit_of_measurement: "mL"
+    mode: box
+
+  #--------------------------------------------------------------------------
+  # Backup Nutrient Inventory
+  #
+  # GAL 2026-07-27
+  #
+  # Purpose:
+  # - Stores the estimated prepared nutrient volume currently available in
+  #   each backup container.
+  # - Backup inventory decreases when nutrient is transferred into the
+  #   corresponding pump-connected production container.
+  # - A newly mixed batch replenishes the corresponding backup inventory only
+  #   after that backup container has been emptied.
+  #
+  # Important:
+  # - These values represent current physical inventory.
+  # - They are not cumulative usage totals.
+  # - Do not define initial values; Home Assistant should restore the last
+  #   saved inventory after restart.
+  #--------------------------------------------------------------------------
+  backup_inventory_a_ml:
+    name: Backup Nutrient A Inventory
+    icon: mdi:bottle-tonic-outline
+    min: 0
+    max: 3780
+    step: 1
+    unit_of_measurement: "mL"
+    mode: box
+
+  backup_inventory_b_ml:
+    name: Backup Nutrient B Inventory
+    icon: mdi:bottle-tonic-outline
+    min: 0
+    max: 3780
+    step: 1
+    unit_of_measurement: "mL"
+    mode: box
+
 #------------------------------------------------------------------------------
 # Input Date/Time
 #------------------------------------------------------------------------------
