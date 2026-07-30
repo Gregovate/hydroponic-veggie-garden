@@ -1674,7 +1674,7 @@ Deferred until higher-priority hydroponics control and EC calibration work is co
 
 ---
 
-# Related Refactoring (2026-07)
+## Related Refactoring (2026-07)
 
 While implementing the pump execution refactor, the nutrient measurement
 architecture was also modernized to support multiple analog probe channels and
@@ -1682,7 +1682,7 @@ improve long-term maintainability.
 
 The following engineering changes were completed:
 
-### Dual Analog Probe Architecture
+## Dual Analog Probe Architecture
 
 The controller now supports two independent analog probe channels.
 
@@ -1752,7 +1752,213 @@ improvements.
 
 ---
 
+# ISSUE-012 – Dual TDS Probe Baseline Drift Investigation
 
+**Status:** Open – Investigation
+
+**Priority:** High
+
+## Objective
+
+Determine why both continuously powered analog TDS measurement channels
+(A0 KEYESTUDIO and A1 DFRobot) exhibit a common long-term downward voltage
+drift while independent handheld EC measurements indicate stable or
+increasing solution conductivity.
+
+This issue must be resolved before the analog probes can be relied upon as
+the primary feedback sensors for automatic nutrient control.
+
+---
+
+## Background
+
+The hydroponic controller currently uses two independent analog
+conductivity measurement systems:
+
+- A0 — KEYESTUDIO Analog TDS Probe
+- A1 — DFRobot Analog TDS Probe
+
+Both probes:
+
+- remain continuously immersed
+- remain continuously powered
+- are measured through the same ADS1115 ADC
+- use separate analog interface boards
+
+The ADS1115 hardware failure identified in ISSUE-011 has been resolved.
+Both channels now operate correctly and respond immediately to nutrient
+additions.
+
+However, a new long-term behavior has been observed.
+
+---
+
+## Problem Description
+
+Both analog channels exhibit a smooth long-term downward voltage drift while:
+
+- maintaining nearly identical trend shapes
+- maintaining a nearly constant A0/A1 voltage ratio
+- responding correctly to nutrient additions
+- disagreeing with the handheld EC reference over longer periods
+
+The observed drift is visible over multiple hours and multiple days.
+
+---
+
+## Confirmed Observations
+
+### Hardware
+
+- ADS1115 replacement restored proper operation.
+- Both analog channels produce stable measurements.
+- Both channels respond immediately to controlled nutrient additions.
+
+### Reservoir
+
+- Continuous circulation pump operating.
+- Probes suspended approximately 4–5 inches below water surface.
+- Probes move several inches with circulation and manual stirring.
+- Reservoir is well mixed before EC reference measurements.
+
+### Controlled Dosing Experiment
+
+A supervised manual dosing experiment demonstrated:
+
+- stable 1.8 EC baseline
+- repeated incremental nutrient additions
+- expected analog voltage increases after dosing
+- transition from 1.8 → 1.9 → 2.0 → 2.1 EC
+- successful post-mixing measurements
+
+Despite successful short-term response, both analog channels resumed their
+long-term downward drift.
+
+---
+
+### Data Available
+
+Current engineering reference dataset includes:
+
+- Handheld EC
+- A0 filtered voltage
+- A1 filtered voltage
+- Channel voltage difference
+- Channel voltage ratio
+- Tank gallons
+- Water temperature
+- Rainfall
+- Estimated rain dilution
+- Controlled nutrient additions
+- Auto-dose history
+- Time-series filtered sensor history
+
+---
+
+## Working Hypotheses
+
+### Electrical
+
+Possible common electrical influence affecting both channels.
+
+Potential causes include:
+
+- shared supply variation
+- common ground reference
+- reservoir electrical leakage
+- ADS1115 reference behavior
+
+---
+
+### Probe Physics
+
+Possible long-term probe behavior including:
+
+- electrode polarization
+- continuous excitation effects
+- analog interface drift
+- probe aging
+
+---
+
+#### Hydraulic
+
+Currently considered less likely.
+
+Reasons:
+
+- probes remain fully submerged
+- probes move freely
+- continuous circulation
+- manual stirring during handheld measurements
+
+Remaining possibilities include:
+
+- localized flow effects
+- circulation pattern changes
+
+---
+
+### Chemical
+
+Possible solution chemistry influences including:
+
+- selective nutrient uptake
+- changing ionic composition
+- precipitation
+- pH changes
+
+Current evidence does not explain why handheld EC increased while both
+analog channels decreased.
+
+---
+
+### Operational Impact
+
+Current fixed-voltage thresholds should **not** be considered sufficiently
+reliable for production automatic nutrient control.
+
+Automatic dosing should continue using engineering supervision until this
+issue is understood.
+
+---
+
+### Proposed Investigation
+
+1. Measure analog board supply voltages.
+2. Compare DMM voltage with ADS1115 measurements.
+3. Measure AC/DC potential between reservoir water and controller ground.
+4. Test continuously powered vs temporarily unpowered probes.
+5. Perform isolated sample testing.
+6. Investigate electrode polarization.
+7. Add handheld pH measurements to engineering references.
+8. Correlate drift with environmental conditions.
+
+---
+
+### Success Criteria
+
+This issue may be closed when one of the following has been achieved:
+
+- Root cause identified.
+- Repeatable compensation model developed.
+- Alternative sensing strategy validated.
+- Automatic dosing can reliably use analog feedback without false low-EC
+  indications.
+
+---
+
+### Important Engineering Conclusion
+
+Current evidence demonstrates that both analog probe systems provide
+excellent short-term sensitivity to controlled nutrient additions.
+
+The unresolved problem is **long-term baseline stability**, not sensor
+responsiveness.
+
+Future investigation should therefore focus on identifying the mechanism
+responsible for the common-mode baseline drift while preserving the
+demonstrated short-term measurement capability.
 
 ---
 
@@ -1760,6 +1966,7 @@ improvements.
 
 | Date | Author | Description |
 |------|--------|-------------|
+| 2026-07-30 | GAL | ISSUE-012 Added Dual TDS Probe Baseline Drift Investigation.
 | 2026-07-22 | GAL | ISSUE-011 Added dual-probe engineering measurement architecture, A0/A1 schema migration, and logging refactor summary.
 | 2026-07-07 | GAL | Initial architecture proposal.
 
